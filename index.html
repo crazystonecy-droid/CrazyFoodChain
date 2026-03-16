@@ -3,37 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>疯狂食物链 - 狼王觉醒版</title>
+    <title>疯狂食物链 - 竖屏爽快版</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden; background-color: #6da235;
-            touch-action: none; overscroll-behavior: none;
-            -webkit-user-select: none; user-select: none;
+            touch-action: none; overscroll-behavior: none; user-select: none;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         #gameCanvas { display: block; width: 100%; height: 100%; }
-        
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         
         #top-bar {
             position: absolute; top: env(safe-area-inset-top, 20px); 
             left: 50%; transform: translateX(-50%);
-            width: 80vw; max-width: 400px; text-align: center;
+            width: 90vw; max-width: 400px; text-align: center;
         }
         #status-text {
-            color: #fff; font-weight: 900; font-size: 1.1rem;
+            color: #fff; font-weight: 900; font-size: 1.2rem;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8); margin-bottom: 8px;
         }
         #progress-bg {
-            width: 100%; height: 18px; background: rgba(0,0,0,0.6);
-            border-radius: 9px; border: 2px solid #fff; overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            width: 100%; height: 20px; background: rgba(0,0,0,0.6);
+            border-radius: 10px; border: 2px solid #fff; overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); position: relative;
         }
-        #progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #f1c40f, #f39c12); transition: width 0.3s ease; }
+        #progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #f1c40f, #e67e22); transition: width 0.3s ease; }
 
+        /* 摇杆适配竖屏，稍微靠中一点 */
         #joystick-zone {
-            position: absolute; bottom: max(30px, env(safe-area-inset-bottom, 30px)); 
+            position: absolute; bottom: max(40px, env(safe-area-inset-bottom, 40px)); 
             left: max(30px, env(safe-area-inset-left, 30px));
             width: 130px; height: 130px; background: rgba(255, 255, 255, 0.15);
             border-radius: 50%; border: 2px solid rgba(255,255,255,0.4); pointer-events: auto; backdrop-filter: blur(4px);
@@ -44,9 +43,10 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.4);
         }
 
+        /* 技能按钮 */
         #dash-btn {
-            position: absolute; bottom: max(40px, env(safe-area-inset-bottom, 40px)); 
-            right: max(40px, env(safe-area-inset-right, 40px));
+            position: absolute; bottom: max(60px, env(safe-area-inset-bottom, 60px)); 
+            right: max(30px, env(safe-area-inset-right, 30px));
             width: 80px; height: 80px; background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
             border-radius: 50%; border: 3px solid #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
             pointer-events: auto; display: flex; justify-content: center; align-items: center;
@@ -61,11 +61,11 @@
         
         #death-screen {
             position: absolute; top:0; left:0; width:100%; height:100%;
-            background: rgba(200, 0, 0, 0.6); display: none;
+            background: rgba(200, 0, 0, 0.7); display: none;
             justify-content: center; align-items: center; flex-direction: column;
             pointer-events: auto; z-index: 999; backdrop-filter: blur(5px);
         }
-        #death-screen h1 { color: white; font-size: 40px; text-shadow: 2px 2px 0 #000; }
+        #death-screen h1 { color: white; font-size: 40px; text-shadow: 2px 2px 0 #000; margin-bottom: 30px; }
         #restart-btn {
             padding: 15px 40px; font-size: 20px; font-weight: bold;
             background: #f1c40f; border: none; border-radius: 30px;
@@ -77,7 +77,7 @@
     <canvas id="gameCanvas"></canvas>
     <div id="ui-layer">
         <div id="top-bar">
-            <div id="status-text">你是小鸡 - 躲避野狐狸！寻找紫符文</div>
+            <div id="status-text">你是小鸡 - 躲避野狐狸！</div>
             <div id="progress-bg"><div id="progress-fill"></div></div>
         </div>
         <div id="joystick-zone"><div id="joystick-knob"></div></div>
@@ -96,15 +96,14 @@
     function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
     window.addEventListener('resize', resize); resize();
 
-    // 更新等级：鸡 -> 临时狐狸 -> 狼
-    const TYPE = { CHICKEN: 0, TEMP_FOX: 1, WOLF: 2 };
-    // 击杀随机飙字库
-    const KILL_MSGS = ["弱肉强食!", "大吉大利!", "致命一击!", "美味!", "无情碾压!", "+1"];
+    // 状态枚举 (区分临时狐狸和临时狼)
+    const TYPE = { CHICKEN: 0, TEMP_FOX: 1, FOX: 2, TEMP_WOLF: 3, WOLF: 4 };
+    const KILL_MSGS = ["弱肉强食!", "大吉大利!", "致命一击!", "美味!", "无情碾压!", "一口吞!"];
 
     let camera = { x: 0, y: 0 };
     let player = {};
-    let bushes = [], crates = [], stones = [], foods = [], runes = [], aiChickens = [], aiFoxes = [];
-    let floatingTexts = []; // 击杀爆字特效数组
+    let bushes = [], crates = [], stones = [], foods = [], foxRunes = [], wolfRunes = [], aiChickens = [], aiFoxes = [];
+    let floatingTexts = []; 
     let gameActive = true;
 
     function resetGame() {
@@ -112,26 +111,29 @@
         
         player = {
             x: 1500, y: 1500, radius: 18, speed: 4.5, type: TYPE.CHICKEN,
-            faceX: 1, faceY: 0, // 默认面朝右边
-            dashCooldown: 0, dashMaxCd: 180, flashEffects: [],
-            tempFoxTimer: 0, tempFoxMaxTime: 20 * 60,
+            faceX: 1, faceY: 0, dashCooldown: 0, dashMaxCd: 180, flashEffects: [],
+            tempTimer: 0, tempMaxTime: 15 * 60, // 体验卡15秒
             evolutionProgress: 0, maxProgress: 100, inBush: false
         };
 
-        bushes = []; crates = []; stones = []; foods = []; runes = []; aiChickens = []; aiFoxes = []; floatingTexts = [];
+        bushes = []; crates = []; stones = []; foods = []; foxRunes = []; wolfRunes = []; aiChickens = []; aiFoxes = []; floatingTexts = [];
         
         for(let i=0; i<30; i++) bushes.push({ x: Math.random()*3000, y: Math.random()*3000, w: 150+Math.random()*150, h: 150+Math.random()*150 });
         for(let i=0; i<25; i++) crates.push({ x: Math.random()*3000, y: Math.random()*3000, w: 80+Math.random()*40, h: 80+Math.random()*40 });
         for(let i=0; i<25; i++) stones.push({ x: Math.random()*3000, y: Math.random()*3000, radius: 40+Math.random()*30 });
         for(let i=0; i<100; i++) foods.push({ x: Math.random()*3000, y: Math.random()*3000 });
-        for(let i=0; i<8; i++) runes.push({ x: Math.random()*3000, y: Math.random()*3000 });
+        
+        // 狐狸符文 (紫) 较多
+        for(let i=0; i<8; i++) foxRunes.push({ x: Math.random()*3000, y: Math.random()*3000 });
+        // 狼印记符文 (红) 稀有
+        for(let i=0; i<2; i++) wolfRunes.push({ x: Math.random()*3000, y: Math.random()*3000 });
         
         for(let i=0; i<35; i++) aiChickens.push({ x: Math.random()*3000, y: Math.random()*3000, vx: 0, vy: 0, faceX: 1, faceY: 0, speed: 3.5, radius: 15, state: 'wander' });
         for(let i=0; i<8; i++) aiFoxes.push({ x: Math.random()*3000, y: Math.random()*3000, vx: 0, vy: 0, faceX: 1, faceY: 0, speed: 4, radius: 22, state: 'wander' });
 
         camera.x = player.x - canvas.width / 2; camera.y = player.y - canvas.height / 2;
         gameActive = true;
-        updateUI("你是小鸡 - 躲避野狐狸！寻找紫符文", "#fff");
+        updateUI("你是小鸡 - 躲避野狐狸！", "#fff");
         document.getElementById('progress-fill').style.width = "0%";
     }
 
@@ -149,7 +151,7 @@
 
     function circleIntersect(c1, c2) { return Math.hypot(c1.x - c2.x, c1.y - c2.y) < (c1.radius + (c2.radius || 10)); }
 
-    // 控制与突击
+    // 控制
     let joyActive = false; let joyVector = { x: 0, y: 0 };
     const joyZone = document.getElementById('joystick-zone'); const joyKnob = document.getElementById('joystick-knob');
 
@@ -170,13 +172,11 @@
     }
     joyZone.addEventListener('touchstart', handleJoy); joyZone.addEventListener('touchmove', handleJoy); joyZone.addEventListener('touchend', handleJoy);
 
-    // 闪现：静止时也会按照 faceX 和 faceY 突击
     const dashCdUI = document.getElementById('dash-cd');
     document.getElementById('dash-btn').addEventListener('touchstart', function(e) {
         e.preventDefault();
         if(player.dashCooldown <= 0 && gameActive) {
             player.flashEffects.push({ x: player.x, y: player.y, faceX: player.faceX, faceY: player.faceY, alpha: 1.0 });
-            
             let flashDist = 220; let step = 10;
             let finalX = player.x; let finalY = player.y;
             for(let i=0; i<flashDist; i+=step) {
@@ -190,11 +190,9 @@
         }
     });
 
-    // 增加击杀爆字
     function showKillText(x, y, isBig = false) {
         let text = KILL_MSGS[Math.floor(Math.random() * KILL_MSGS.length)];
-        let color = isBig ? "#ff3838" : "#ff9f1a";
-        let size = isBig ? "30px" : "22px";
+        let color = isBig ? "#ff3838" : "#ff9f1a"; let size = isBig ? "30px" : "22px";
         floatingTexts.push({ x: x, y: y - 20, text: text, alpha: 1.0, color: color, font: `900 ${size} Arial` });
     }
 
@@ -203,11 +201,7 @@
 
         let moveX = joyActive ? joyVector.x : 0; let moveY = joyActive ? joyVector.y : 0;
         let len = Math.hypot(moveX, moveY);
-        if (len > 0) {
-            moveX /= len; moveY /= len;
-            // 更新最后面朝方向
-            player.faceX = moveX; player.faceY = moveY;
-        }
+        if (len > 0) { moveX /= len; moveY /= len; player.faceX = moveX; player.faceY = moveY; }
 
         if (!isColliding(player.x + moveX * player.speed, player.y, player.radius)) player.x += moveX * player.speed;
         if (!isColliding(player.x, player.y + moveY * player.speed, player.radius)) player.y += moveY * player.speed;
@@ -217,10 +211,8 @@
             if(player.dashCooldown <= 0) dashCdUI.style.display = 'none';
         }
 
-        // 爆字动画更新
         for(let i = floatingTexts.length-1; i>=0; i--) {
-            floatingTexts[i].y -= 1.5; // 向上飘
-            floatingTexts[i].alpha -= 0.015; // 渐隐
+            floatingTexts[i].y -= 1.5; floatingTexts[i].alpha -= 0.015;
             if(floatingTexts[i].alpha <= 0) floatingTexts.splice(i, 1);
         }
 
@@ -234,36 +226,72 @@
             if (player.x>b.x && player.x<b.x+b.w && player.y>b.y && player.y<b.y+b.h) { player.inBush = true; break; }
         }
 
-        if (player.type === TYPE.TEMP_FOX) {
-            player.tempFoxTimer--;
-            if (player.tempFoxTimer <= 0) {
-                player.type = TYPE.CHICKEN; player.evolutionProgress = 0;
-                updateUI("时间到！变回小鸡，快跑", "#fff"); document.getElementById('progress-fill').style.width = "0%";
+        // --- 限时变身倒计时机制 (关键点1：时间到变回鸡，进度保留) ---
+        if (player.type === TYPE.TEMP_FOX || player.type === TYPE.TEMP_WOLF) {
+            player.tempTimer--;
+            if (player.tempTimer <= 0) {
+                // 退回上一级形态，但【不清除】 evolutionProgress！
+                if(player.type === TYPE.TEMP_FOX) {
+                    player.type = TYPE.CHICKEN; player.radius = 18; player.speed = 4.5;
+                    updateUI("体验结束！变回小鸡 (进度已保留)", "#fff");
+                } else if(player.type === TYPE.TEMP_WOLF) {
+                    player.type = TYPE.FOX; player.radius = 22; player.speed = 4.8;
+                    updateUI("体验结束！变回狐狸 (进度已保留)", "#ff9f1a");
+                }
             }
         }
 
+        // 鸡状态下吃豆子
         for (let i = foods.length - 1; i >= 0; i--) {
             if (circleIntersect(player, {x: foods[i].x, y: foods[i].y, radius: 5})) {
                 foods.splice(i, 1); foods.push({ x: Math.random()*3000, y: Math.random()*3000 });
-                if (player.type === TYPE.CHICKEN) addProgress(5);
+                if (player.type === TYPE.CHICKEN || player.type === TYPE.FOX) addProgress(4);
             }
         }
 
-        for (let i = runes.length - 1; i >= 0; i--) {
-            if (player.type === TYPE.CHICKEN && circleIntersect(player, {x: runes[i].x, y: runes[i].y, radius: 15})) {
-                runes.splice(i, 1);
-                player.type = TYPE.TEMP_FOX; player.tempFoxTimer = player.tempFoxMaxTime; player.evolutionProgress = 0;
-                updateUI("【狐狸体验卡】快去吃鸡进化！", "#ff4757");
-                setTimeout(()=> runes.push({ x: Math.random()*3000, y: Math.random()*3000 }), 10000);
+        // --- 触碰紫符文 (狐狸) ---
+        for (let i = foxRunes.length - 1; i >= 0; i--) {
+            if (circleIntersect(player, {x: foxRunes[i].x, y: foxRunes[i].y, radius: 15})) {
+                if (player.type === TYPE.CHICKEN) {
+                    // 鸡变临时狐狸
+                    player.type = TYPE.TEMP_FOX; player.tempTimer = player.tempMaxTime;
+                    player.radius = 22; player.speed = 4.8;
+                    updateUI("【狐狸体验卡】快去吃鸡转正！", "#ff4757");
+                } else if (player.type === TYPE.TEMP_FOX) {
+                    // 关键点2：狐狸状态下再次触碰，重置时间 (续杯)
+                    player.tempTimer = player.tempMaxTime;
+                    updateUI("【时间重置】继续你的狩猎！", "#ff4757");
+                }
+                foxRunes.splice(i, 1);
+                setTimeout(()=> foxRunes.push({ x: Math.random()*3000, y: Math.random()*3000 }), 8000);
             }
         }
 
-        // --- AI 逻辑 ---
+        // --- 触碰红符文 (狼) (关键点3) ---
+        for (let i = wolfRunes.length - 1; i >= 0; i--) {
+            if (circleIntersect(player, {x: wolfRunes[i].x, y: wolfRunes[i].y, radius: 15})) {
+                if (player.type === TYPE.CHICKEN || player.type === TYPE.FOX || player.type === TYPE.TEMP_FOX) {
+                    // 无论你是鸡还是狐狸，吃到红符文直接变临时狼！跨级体验！
+                    player.type = TYPE.TEMP_WOLF; player.tempTimer = player.tempMaxTime;
+                    player.radius = 26; player.speed = 5.2;
+                    updateUI("【狼王印记】吃掉一切！", "#e15f41");
+                } else if (player.type === TYPE.TEMP_WOLF) {
+                    // 续杯
+                    player.tempTimer = player.tempMaxTime;
+                    updateUI("【时间重置】狼王继续杀戮！", "#e15f41");
+                }
+                wolfRunes.splice(i, 1);
+                setTimeout(()=> wolfRunes.push({ x: Math.random()*3000, y: Math.random()*3000 }), 15000); // 红符文刷新慢
+            }
+        }
+
+        // AI 逻辑与捕食
         for (let i = aiChickens.length - 1; i >= 0; i--) {
             let ai = aiChickens[i];
             let distToPlayer = Math.hypot(player.x - ai.x, player.y - ai.y);
             
-            if ((player.type === TYPE.TEMP_FOX || player.type === TYPE.WOLF) && distToPlayer < 350 && !player.inBush) {
+            // 狐狸或狼靠近，鸡逃跑
+            if ((player.type === TYPE.TEMP_FOX || player.type === TYPE.FOX || player.type === TYPE.TEMP_WOLF || player.type === TYPE.WOLF) && distToPlayer < 350 && !player.inBush) {
                 ai.state = 'flee';
                 let dirX = ai.x - player.x; let dirY = ai.y - player.y; let l = Math.hypot(dirX, dirY);
                 ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed;
@@ -273,17 +301,16 @@
                     ai.vx = Math.cos(angle) * ai.speed * 0.5; ai.vy = Math.sin(angle) * ai.speed * 0.5;
                 }
             }
-            // 更新AI面朝方向
             if (Math.hypot(ai.vx, ai.vy) > 0) { ai.faceX = ai.vx; ai.faceY = ai.vy; }
 
             if (!isColliding(ai.x + ai.vx, ai.y, ai.radius)) ai.x += ai.vx; else ai.vx *= -1;
             if (!isColliding(ai.x, ai.y + ai.vy, ai.radius)) ai.y += ai.vy; else ai.vy *= -1;
 
-            // 被吃
-            if ((player.type === TYPE.TEMP_FOX || player.type === TYPE.WOLF) && circleIntersect(player, ai)) {
+            // 狐狸或狼吃鸡
+            if ((player.type === TYPE.TEMP_FOX || player.type === TYPE.FOX || player.type === TYPE.TEMP_WOLF || player.type === TYPE.WOLF) && circleIntersect(player, ai)) {
                 aiChickens.splice(i, 1); aiChickens.push({ x: Math.random()*3000, y: Math.random()*3000, vx:0, vy:0, faceX:1, faceY:0, speed: 3.5, radius: 15, state: 'wander' });
-                showKillText(player.x, player.y, false); // 飙字
-                if (player.type === TYPE.TEMP_FOX) addProgress(34);
+                showKillText(player.x, player.y, false);
+                addProgress(34); // 吃3只升一级
             }
         }
 
@@ -292,12 +319,10 @@
             let distToPlayer = Math.hypot(player.x - ai.x, player.y - ai.y);
             
             if (player.type === TYPE.CHICKEN && distToPlayer < 400 && !player.inBush) {
-                // 追杀鸡
                 ai.state = 'chase';
                 let dirX = player.x - ai.x; let dirY = player.y - ai.y; let l = Math.hypot(dirX, dirY);
                 ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed;
-            } else if (player.type === TYPE.WOLF && distToPlayer < 400 && !player.inBush) {
-                // 怕狼，逃跑
+            } else if ((player.type === TYPE.TEMP_WOLF || player.type === TYPE.WOLF) && distToPlayer < 400 && !player.inBush) {
                 ai.state = 'flee';
                 let dirX = ai.x - player.x; let dirY = ai.y - player.y; let l = Math.hypot(dirX, dirY);
                 ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed;
@@ -307,19 +332,17 @@
                     ai.vx = Math.cos(angle) * ai.speed * 0.5; ai.vy = Math.sin(angle) * ai.speed * 0.5;
                 }
             }
-            
             if (Math.hypot(ai.vx, ai.vy) > 0) { ai.faceX = ai.vx; ai.faceY = ai.vy; }
             if (!isColliding(ai.x + ai.vx, ai.y, ai.radius)) ai.x += ai.vx; else ai.vx *= -1;
             if (!isColliding(ai.x, ai.y + ai.vy, ai.radius)) ai.y += ai.vy; else ai.vy *= -1;
 
-            // 鸡被狐狸吃
             if (player.type === TYPE.CHICKEN && circleIntersect(player, ai)) {
                 gameActive = false; document.getElementById('death-screen').style.display = 'flex';
             }
-            // 狼吃狐狸
-            if (player.type === TYPE.WOLF && circleIntersect(player, ai)) {
+            if ((player.type === TYPE.TEMP_WOLF || player.type === TYPE.WOLF) && circleIntersect(player, ai)) {
                 aiFoxes.splice(i, 1); aiFoxes.push({ x: Math.random()*3000, y: Math.random()*3000, vx:0, vy:0, faceX:1, faceY:0, speed: 4, radius: 22, state: 'wander' });
-                showKillText(player.x, player.y, true); // 大字击杀
+                showKillText(player.x, player.y, true);
+                addProgress(50); // 狼吃野狐狸直接加50%进度
             }
         }
 
@@ -329,12 +352,17 @@
 
     function addProgress(val) {
         player.evolutionProgress += val;
+        // 如果进度满了
         if (player.evolutionProgress >= player.maxProgress) {
-            player.evolutionProgress = 0;
-            if (player.type === TYPE.CHICKEN) updateUI("满级小鸡！寻找紫符文", "#2ed573");
-            else if (player.type === TYPE.TEMP_FOX) {
-                player.type = TYPE.WOLF; player.radius = 26; player.speed = 5; // 变狼，体型变大变快
-                updateUI("狼王降临！狩猎所有动物！", "#fffa65");
+            player.evolutionProgress = 0; // 重置进度
+            
+            if (player.type === TYPE.CHICKEN || player.type === TYPE.TEMP_FOX) {
+                player.type = TYPE.FOX; player.radius = 22; player.speed = 4.8;
+                updateUI("转正！你成为了真正的狐狸！", "#ffa502");
+            } 
+            else if (player.type === TYPE.FOX || player.type === TYPE.TEMP_WOLF) {
+                player.type = TYPE.WOLF; player.radius = 26; player.speed = 5.2;
+                updateUI("终极进化！常驻黑狼王降临！", "#fffa65");
             }
         }
         document.getElementById('progress-fill').style.width = Math.min(100, player.evolutionProgress) + "%";
@@ -344,46 +372,33 @@
         const txt = document.getElementById('status-text'); txt.innerText = text; txt.style.color = color;
     }
 
-    // --- 重点：通过旋转画布实现身体朝向 ---
+    // 绘制角色
     function drawCharacter(ctx, x, y, type, fx, fy, isEnemy = false) {
-        ctx.save();
-        ctx.translate(x, y);
-        // 计算旋转角度 (Math.atan2 根据方向向量算弧度)
-        let angle = Math.atan2(fy, fx);
-        ctx.rotate(angle);
+        ctx.save(); ctx.translate(x, y);
+        let angle = Math.atan2(fy, fx); ctx.rotate(angle);
         
-        // 接下来所有的绘制都以圆心为基准，默认面朝右边画 (x的正方向)
         if (type === TYPE.CHICKEN) {
             ctx.fillStyle = "#fff"; ctx.strokeStyle = "#a4b0be"; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(0, 0, 16, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            // 嘴巴 (朝右)
             ctx.fillStyle = "#ffa502"; ctx.beginPath(); ctx.moveTo(14, -5); ctx.lineTo(24, 0); ctx.lineTo(14, 5); ctx.fill();
-            // 鸡冠 (朝上/左)
             ctx.fillStyle = "#ff4757"; ctx.beginPath(); ctx.arc(-2, -10, 5, 0, Math.PI*2); ctx.fill();
-            // 眼睛
             ctx.fillStyle = "#000"; ctx.beginPath(); ctx.arc(6, -6, 2, 0, Math.PI*2); ctx.fill();
         } 
-        else if (type === TYPE.TEMP_FOX || (isEnemy && type === 'FOX')) {
+        else if (type === TYPE.TEMP_FOX || type === TYPE.FOX || (isEnemy && type === 'FOX')) {
             ctx.fillStyle = isEnemy ? "#ff4757" : "#ff7f50";
             ctx.strokeStyle = "#d35400"; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            // 狐狸鼻子 (朝右突出)
             ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(22, 0, 5, 0, Math.PI*2); ctx.fill();
-            // 耳朵 (靠左边)
             ctx.beginPath(); ctx.moveTo(5, -15); ctx.lineTo(-10, -28); ctx.lineTo(-12, -10); ctx.fill();
             ctx.beginPath(); ctx.moveTo(5, 15);  ctx.lineTo(-10, 28);  ctx.lineTo(-12, 10);  ctx.fill();
         }
-        else if (type === TYPE.WOLF) {
-            // 黑色的狼王
+        else if (type === TYPE.TEMP_WOLF || type === TYPE.WOLF) {
             ctx.fillStyle = "#2f3542"; ctx.strokeStyle = "#1e272e"; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            // 狼嘴吻部
             ctx.fillStyle = "#57606f"; ctx.beginPath(); ctx.arc(22, 0, 8, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = "#000"; ctx.beginPath(); ctx.arc(28, 0, 4, 0, Math.PI*2); ctx.fill();
-            // 狼耳 (尖锐)
             ctx.beginPath(); ctx.moveTo(5, -18); ctx.lineTo(-12, -35); ctx.lineTo(-15, -12); ctx.fill();
             ctx.beginPath(); ctx.moveTo(5, 18);  ctx.lineTo(-12, 35);  ctx.lineTo(-15, 12);  ctx.fill();
-            // 狼眼 (发黄光)
             ctx.fillStyle = "#f1c40f"; 
             ctx.beginPath(); ctx.arc(10, -8, 3, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(10, 8, 3, 0, Math.PI*2); ctx.fill();
@@ -396,13 +411,20 @@
         ctx.save(); ctx.translate(-camera.x, -camera.y);
 
         ctx.fillStyle = "#7bed9f"; ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
-        
         ctx.fillStyle = "#2ed573"; for (let f of foods) { ctx.beginPath(); ctx.arc(f.x, f.y, 5, 0, Math.PI*2); ctx.fill(); }
 
-        for (let r of runes) {
+        // 紫色狐狸符文
+        for (let r of foxRunes) {
             ctx.fillStyle = "#9c88ff"; ctx.beginPath(); ctx.arc(r.x, r.y, 14, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = "#c8d6e5"; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(r.x, r.y, 18 + Math.sin(Date.now()/150)*4, 0, Math.PI*2); ctx.stroke();
+        }
+        
+        // 红色狼王符文
+        for (let r of wolfRunes) {
+            ctx.fillStyle = "#ff4757"; ctx.beginPath(); ctx.arc(r.x, r.y, 16, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = "#ffa502"; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.arc(r.x, r.y, 20 + Math.sin(Date.now()/100)*6, 0, Math.PI*2); ctx.stroke();
         }
 
         ctx.fillStyle = "#747d8c"; ctx.strokeStyle = "#57606f"; ctx.lineWidth = 3;
@@ -419,51 +441,43 @@
             ctx.beginPath(); ctx.moveTo(c.x+c.w, c.y); ctx.lineTo(c.x, c.y+c.h); ctx.stroke();
         }
 
-        // 绘制AI
         for (let ai of aiChickens) {
             drawCharacter(ctx, ai.x, ai.y, TYPE.CHICKEN, ai.faceX, ai.faceY);
             if(ai.state === 'flee') { ctx.fillStyle = "#70a1ff"; ctx.beginPath(); ctx.arc(ai.x, ai.y-22, 4, 0, Math.PI*2); ctx.fill(); }
         }
         for (let ai of aiFoxes) {
-            drawCharacter(ctx, ai.x, ai.y, TYPE.TEMP_FOX, ai.faceX, ai.faceY, true);
+            drawCharacter(ctx, ai.x, ai.y, TYPE.FOX, ai.faceX, ai.faceY, true);
             if(ai.state === 'chase') { ctx.fillStyle = "#ff4757"; ctx.beginPath(); ctx.arc(ai.x, ai.y-25, 5, 0, Math.PI*2); ctx.fill(); }
             if(ai.state === 'flee')  { ctx.fillStyle = "#70a1ff"; ctx.beginPath(); ctx.arc(ai.x, ai.y-25, 4, 0, Math.PI*2); ctx.fill(); }
         }
 
-        // 玩家残影
         for (let eff of player.flashEffects) {
             ctx.globalAlpha = eff.alpha * 0.4; 
             drawCharacter(ctx, eff.x, eff.y, player.type, eff.faceX, eff.faceY);
         }
         ctx.globalAlpha = 1.0;
 
-        // 绘制玩家
         if(gameActive) {
             if (player.inBush) ctx.globalAlpha = 0.5;
             drawCharacter(ctx, player.x, player.y, player.type, player.faceX, player.faceY);
             ctx.globalAlpha = 1.0;
 
-            if (player.type === TYPE.TEMP_FOX) {
-                let s = Math.ceil(player.tempFoxTimer / 60);
-                ctx.fillStyle = "#fff"; ctx.font = "bold 24px Arial"; ctx.shadowColor = "#000"; ctx.shadowBlur = 4;
+            if (player.type === TYPE.TEMP_FOX || player.type === TYPE.TEMP_WOLF) {
+                let s = Math.ceil(player.tempTimer / 60);
+                // 狼印记倒计时用红色，狐狸用白色
+                ctx.fillStyle = player.type === TYPE.TEMP_WOLF ? "#ff4757" : "#fff"; 
+                ctx.font = "bold 24px Arial"; ctx.shadowColor = "#000"; ctx.shadowBlur = 4;
                 ctx.fillText(s + "s", player.x - 12, player.y - 35); ctx.shadowBlur = 0;
             }
         }
 
-        // 草丛
         ctx.globalAlpha = 0.85; ctx.fillStyle = "#2ed573"; ctx.strokeStyle = "#2f3542"; ctx.lineWidth = 3;
-        for (let b of bushes) {
-            ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeRect(b.x, b.y, b.w, b.h);
-        }
+        for (let b of bushes) { ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeRect(b.x, b.y, b.w, b.h); }
         ctx.globalAlpha = 1.0;
 
-        // 绘制击杀飙字特效 (盖在最上面)
         for(let ft of floatingTexts) {
-            ctx.globalAlpha = ft.alpha;
-            ctx.fillStyle = ft.color;
-            ctx.font = ft.font;
-            ctx.shadowColor = "rgba(0,0,0,0.8)"; 
-            ctx.shadowBlur = 5;
+            ctx.globalAlpha = ft.alpha; ctx.fillStyle = ft.color; ctx.font = ft.font;
+            ctx.shadowColor = "rgba(0,0,0,0.8)"; ctx.shadowBlur = 5;
             ctx.fillText(ft.text, ft.x - 30, ft.y);
         }
         ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
@@ -471,13 +485,8 @@
         ctx.restore();
     }
 
-    function gameLoop() {
-        update(); draw();
-        requestAnimationFrame(gameLoop);
-    }
-
-    resetGame();
-    gameLoop();
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+    resetGame(); gameLoop();
 </script>
 </body>
 </html>
