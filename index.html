@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 核心适配：禁止缩放，适配刘海屏，禁止默认交互 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>疯狂食物链 - 真实生态版</title>
+    <style>
+        /* 彻底干掉微信/浏览器的默认滑动和回弹效果 */
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; background-color: #6da235; /* 底层草地色 */
+            touch-action: none; overscroll-behavior: none;
+            -webkit-user-select: none; user-select: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #gameCanvas { display: block; width: 100%; height: 100%; }
+        
+        /* UI 绝对定位层 */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+        }
+        
+        /* 顶部进度与提示区 */
+        #top-bar {
+            position: absolute; top: env(safe-area-inset-top, 20px); 
+            left: 50%; transform: translateX(-50%);
+            width: 80vw; max-width: 400px; text-align: center;
+        }
+        #status-text {
+            color: #fff; font-weight: 900; font-size: 1.1rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8); margin-bottom: 8px;
+        }
+        #progress-bg {
+            width: 100%; height: 18px; background: rgba(0,0,0,0.6);
+            border-radius: 9px; border: 2px solid #fff; overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        #progress-fill {
+            width: 0%; height: 100%; background: linear-gradient(90deg, #f1c40f, #f39c12);
+            transition: width 0.3s ease;
+        }
+
+        /* 左侧虚拟摇杆 (自适应位置) */
+        #joystick-zone {
+            position: absolute; bottom: max(30px, env(safe-area-inset-bottom, 30px)); 
+            left: max(30px, env(safe-area-inset-left, 30px));
+            width: 130px; height: 130px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%; border: 2px solid rgba(255,255,255,0.4);
+            pointer-events: auto; backdrop-filter: blur(4px);
+        }
+        #joystick-knob {
+            position: absolute; top: 50%; left: 50%;
+            width: 50px; height: 50px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%; transform: translate(-50%, -50%);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+
+        /* 右侧闪现按钮 (自适应位置) */
+        #dash-btn {
+            position: absolute; bottom: max(40px, env(safe-area-inset-bottom, 40px)); 
+            right: max(40px, env(safe-area-inset-right, 40px));
+            width: 80px; height: 80px;
+            background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
+            border-radius: 50%; border: 3px solid #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            pointer-events: auto;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 26px; color: white; font-weight: bold;
+        }
+        #dash-btn:active { transform: scale(0.95); }
+        #dash-cd {
+            position: absolute; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); border-radius: 50%;
+            display: none; justify-content: center; align-items: center;
+            font-size: 24px; color: #fff;
+        }
+        
+        /* 死亡全屏遮罩 */
+        #death-screen {
+            position: absolute; top:0; left:0; width:100%; height:100%;
+            background: rgba(200, 0, 0, 0.5); display: none;
+            justify-content: center; align-items: center; flex-direction: column;
+            pointer-events: auto; z-index: 999; backdrop-filter: blur(5px);
+        }
+        #death-screen h1 { color: white; font-size: 40px; text-shadow: 2px 2px 0 #000; }
+        #restart-btn {
+            padding: 15px 40px; font-size: 20px; font-weight: bold;
+            background: #f1c40f; border: none; border-radius: 30px;
+            box-shadow: 0 5px 0 #d35400; color: #333;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+        <div id="top-bar">
+            <div id="status-text">你是小鸡 - 躲避野狐狸！寻找紫符文</div>
+            <div id="progress-bg"><div id="progress-fill"></div></div>
+        </div>
+        <div id="joystick-zone"><div id="joystick-knob"></div></div>
+        <div id="dash-btn">闪<div id="dash-cd"></div></div>
+    </div>
+
+    <div id="death-screen">
+        <h1>你被吃掉了！</h1>
+        <button id="restart-btn" onclick="resetGame()">重新开始</button>
+    </div>
+
+<script>
+    // 阻止微信下拉等默认行为
+    document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize); resize();
+
+    const TYPE = { CHICKEN: 0, TEMP_FOX: 1, FOX: 2 };
+
+    let camera = { x: 0, y: 0 };
+    let player = {};
+    let bushes = [], crates = [], stones = [], foods = [], runes = [], aiChickens = [], aiFoxes = [];
+    let gameActive = true;
+
+    // --- 地图生成与重置 ---
+    function resetGame() {
+        document.getElementById('death-screen').style.display = 'none';
+        
+        player = {
+            x: 1500, y: 1500, radius: 18, speed: 4.5, type: TYPE.CHICKEN,
+            faceX: 1, faceY: 0, dashCooldown: 0, dashMaxCd: 180, flashEffects: [],
+            tempFoxTimer: 0, tempFoxMaxTime: 20 * 60, // 缩短为20秒更刺激
+            evolutionProgress: 0, maxProgress: 100, inBush: false
+        };
+
+        bushes = []; crates = []; stones = []; foods = []; runes = []; aiChickens = []; aiFoxes = [];
+        
+        // 实体生成
+        for(let i=0; i<30; i++) bushes.push({ x: Math.random()*3000, y: Math.random()*3000, w: 150+Math.random()*150, h: 150+Math.random()*150 });
+        // 障碍物：木箱子 (矩形)
+        for(let i=0; i<25; i++) crates.push({ x: Math.random()*3000, y: Math.random()*3000, w: 80+Math.random()*40, h: 80+Math.random()*40 });
+        // 障碍物：石头 (圆形)
+        for(let i=0; i<25; i++) stones.push({ x: Math.random()*3000, y: Math.random()*3000, radius: 40+Math.random()*30 });
+        
+        for(let i=0; i<100; i++) foods.push({ x: Math.random()*3000, y: Math.random()*3000 });
+        for(let i=0; i<8; i++) runes.push({ x: Math.random()*3000, y: Math.random()*3000 });
+        
+        // AI 鸡 (猎物)
+        for(let i=0; i<35; i++) aiChickens.push({ x: Math.random()*3000, y: Math.random()*3000, vx: 0, vy: 0, speed: 3.5, radius: 15, state: 'wander' });
+        // AI 狐狸 (捕食者)
+        for(let i=0; i<8; i++) aiFoxes.push({ x: Math.random()*3000, y: Math.random()*3000, vx: 0, vy: 0, speed: 4, radius: 22, state: 'wander' });
+
+        camera.x = player.x - canvas.width / 2;
+        camera.y = player.y - canvas.height / 2;
+        gameActive = true;
+        updateUI("你是小鸡 - 躲避野狐狸！寻找紫符文", "#fff");
+        document.getElementById('progress-fill').style.width = "0%";
+    }
+
+    // --- 碰撞检测核心 (解决卡墙问题) ---
+    function isColliding(x, y, r) {
+        // 地图边界判定
+        if(x - r < 0 || x + r > 3000 || y - r < 0 || y + r > 3000) return true;
+        
+        // 箱子 (矩形碰撞)
+        for (let c of crates) {
+            let testX = x, testY = y;
+            if (x < c.x) testX = c.x; else if (x > c.x + c.w) testX = c.x + c.w;
+            if (y < c.y) testY = c.y; else if (y > c.y + c.h) testY = c.y + c.h;
+            if (Math.hypot(x - testX, y - testY) < r) return true;
+        }
+        // 石头 (圆形碰撞)
+        for (let s of stones) {
+            if (Math.hypot(x - s.x, y - s.y) < r + s.radius) return true;
+        }
+        return false;
+    }
+
+    // 圆形交集
+    function circleIntersect(c1, c2) { return Math.hypot(c1.x - c2.x, c1.y - c2.y) < (c1.radius + (c2.radius || 10)); }
+
+    // --- 控制逻辑 ---
+    let joyActive = false; let joyVector = { x: 0, y: 0 };
+    const joyZone = document.getElementById('joystick-zone');
+    const joyKnob = document.getElementById('joystick-knob');
+
+    function handleJoy(e) {
+        if(e) e.preventDefault();
+        if(e.type === 'touchend' || e.type === 'mouseup') {
+            joyActive = false; joyVector = {x: 0, y: 0};
+            joyKnob.style.transform = `translate(-50%, -50%)`; return;
+        }
+        joyActive = true;
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        let rect = joyZone.getBoundingClientRect();
+        let dx = clientX - (rect.left + rect.width/2);
+        let dy = clientY - (rect.top + rect.height/2);
+        let dist = Math.hypot(dx, dy); let maxDist = 50;
+        if (dist > maxDist) { dx = (dx/dist)*maxDist; dy = (dy/dist)*maxDist; }
+        joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+        joyVector.x = dx / maxDist; joyVector.y = dy / maxDist;
+    }
+    
+    joyZone.addEventListener('touchstart', handleJoy); joyZone.addEventListener('touchmove', handleJoy);
+    joyZone.addEventListener('touchend', handleJoy);
+
+    // 闪现 (带防穿墙射线检测)
+    const dashCdUI = document.getElementById('dash-cd');
+    document.getElementById('dash-btn').addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        if(player.dashCooldown <= 0 && gameActive) {
+            player.flashEffects.push({ x: player.x, y: player.y, alpha: 1.0 });
+            
+            // 步进射线检测，防止闪现穿墙
+            let flashDist = 200;
+            let step = 10;
+            let finalX = player.x; let finalY = player.y;
+            
+            for(let i=0; i<flashDist; i+=step) {
+                let testX = finalX + player.faceX * step;
+                let testY = finalY + player.faceY * step;
+                if(isColliding(testX, testY, player.radius)) break; // 撞墙停止
+                finalX = testX; finalY = testY;
+            }
+            
+            player.x = finalX; player.y = finalY;
+            player.flashEffects.push({ x: player.x, y: player.y, alpha: 0.8 });
+            player.dashCooldown = player.dashMaxCd; dashCdUI.style.display = 'flex';
+        }
+    });
+
+    // --- 主逻辑更新 ---
+    function update() {
+        if(!gameActive) return;
+
+        // 玩家移动与碰撞滑动
+        let moveX = joyActive ? joyVector.x : 0;
+        let moveY = joyActive ? joyVector.y : 0;
+        
+        let len = Math.hypot(moveX, moveY);
+        if (len > 0) {
+            moveX /= len; moveY /= len;
+            player.faceX = moveX; player.faceY = moveY;
+        }
+
+        // 分离X和Y轴的碰撞判定，实现“靠墙滑动”手感
+        if (!isColliding(player.x + moveX * player.speed, player.y, player.radius)) {
+            player.x += moveX * player.speed;
+        }
+        if (!isColliding(player.x, player.y + moveY * player.speed, player.radius)) {
+            player.y += moveY * player.speed;
+        }
+
+        // 闪现CD与残影
+        if (player.dashCooldown > 0) {
+            player.dashCooldown--; dashCdUI.innerText = Math.ceil(player.dashCooldown / 60);
+            if(player.dashCooldown <= 0) dashCdUI.style.display = 'none';
+        }
+        for (let i = player.flashEffects.length - 1; i >= 0; i--) {
+            player.flashEffects[i].alpha -= 0.05;
+            if (player.flashEffects[i].alpha <= 0) player.flashEffects.splice(i, 1);
+        }
+
+        // 草丛判定
+        player.inBush = false;
+        for (let b of bushes) {
+            if (player.x>b.x && player.x<b.x+b.w && player.y>b.y && player.y<b.y+b.h) {
+                player.inBush = true; break;
+            }
+        }
+
+        // 临时狐狸倒计时
+        if (player.type === TYPE.TEMP_FOX) {
+            player.tempFoxTimer--;
+            if (player.tempFoxTimer <= 0) {
+                player.type = TYPE.CHICKEN; player.evolutionProgress = 0;
+                updateUI("时间到！变回小鸡，快跑", "#fff");
+                document.getElementById('progress-fill').style.width = "0%";
+            }
+        }
+
+        // 玩家吃豆子
+        for (let i = foods.length - 1; i >= 0; i--) {
+            if (circleIntersect(player, {x: foods[i].x, y: foods[i].y, radius: 5})) {
+                foods.splice(i, 1); foods.push({ x: Math.random()*3000, y: Math.random()*3000 });
+                if (player.type === TYPE.CHICKEN) addProgress(5);
+            }
+        }
+
+        // 玩家吃符文
+        for (let i = runes.length - 1; i >= 0; i--) {
+            if (player.type === TYPE.CHICKEN && circleIntersect(player, {x: runes[i].x, y: runes[i].y, radius: 15})) {
+                runes.splice(i, 1);
+                player.type = TYPE.TEMP_FOX; player.tempFoxTimer = player.tempFoxMaxTime; player.evolutionProgress = 0;
+                updateUI("【狐狸体验卡】快去吃鸡转正！", "#ff4757");
+                setTimeout(()=> runes.push({ x: Math.random()*3000, y: Math.random()*3000 }), 10000);
+            }
+        }
+
+        // ==========================
+        // 核心：AI 行为逻辑
+        // ==========================
+        
+        // 1. AI 鸡的逻辑 (逃跑 / 闲逛)
+        for (let i = aiChickens.length - 1; i >= 0; i--) {
+            let ai = aiChickens[i];
+            let distToPlayer = Math.hypot(player.x - ai.x, player.y - ai.y);
+            
+            // 如果玩家是狐狸，并且距离近 (且玩家不在草丛里隐身)
+            if ((player.type === TYPE.TEMP_FOX || player.type === TYPE.FOX) && distToPlayer < 350 && !player.inBush) {
+                ai.state = 'flee';
+                // 反向逃跑
+                let dirX = ai.x - player.x; let dirY = ai.y - player.y;
+                let l = Math.hypot(dirX, dirY);
+                ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed;
+            } else {
+                if(Math.random()<0.02 || ai.state === 'flee') { // 恢复闲逛
+                    ai.state = 'wander';
+                    let angle = Math.random() * Math.PI * 2;
+                    ai.vx = Math.cos(angle) * ai.speed * 0.5; ai.vy = Math.sin(angle) * ai.speed * 0.5;
+                }
+            }
+
+            // AI移动与防撞墙
+            if (!isColliding(ai.x + ai.vx, ai.y, ai.radius)) ai.x += ai.vx;
+            else ai.vx *= -1; // 撞墙反弹
+            
+            if (!isColliding(ai.x, ai.y + ai.vy, ai.radius)) ai.y += ai.vy;
+            else ai.vy *= -1;
+
+            // 玩家吃AI鸡
+            if ((player.type === TYPE.TEMP_FOX || player.type === TYPE.FOX) && circleIntersect(player, ai)) {
+                aiChickens.splice(i, 1);
+                aiChickens.push({ x: Math.random()*3000, y: Math.random()*3000, vx:0, vy:0, speed: 3.5, radius: 15, state: 'wander' });
+                if (player.type === TYPE.TEMP_FOX) addProgress(34); // 吃3只转正
+            }
+        }
+
+        // 2. AI 狐狸的逻辑 (追杀玩家)
+        for (let ai of aiFoxes) {
+            let distToPlayer = Math.hypot(player.x - ai.x, player.y - ai.y);
+            
+            // 玩家是鸡且进入视野，且没躲在草里
+            if (player.type === TYPE.CHICKEN && distToPlayer < 400 && !player.inBush) {
+                ai.state = 'chase';
+                let dirX = player.x - ai.x; let dirY = player.y - ai.y;
+                let l = Math.hypot(dirX, dirY);
+                ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed;
+            } else {
+                if(Math.random()<0.02 || ai.state === 'chase') {
+                    ai.state = 'wander';
+                    let angle = Math.random() * Math.PI * 2;
+                    ai.vx = Math.cos(angle) * ai.speed * 0.5; ai.vy = Math.sin(angle) * ai.speed * 0.5;
+                }
+            }
+
+            if (!isColliding(ai.x + ai.vx, ai.y, ai.radius)) ai.x += ai.vx; else ai.vx *= -1;
+            if (!isColliding(ai.x, ai.y + ai.vy, ai.radius)) ai.y += ai.vy; else ai.vy *= -1;
+
+            // 被AI狐狸吃掉！
+            if (player.type === TYPE.CHICKEN && circleIntersect(player, ai)) {
+                gameActive = false;
+                document.getElementById('death-screen').style.display = 'flex';
+            }
+        }
+
+        // 镜头丝滑跟随
+        let targetCamX = player.x - canvas.width / 2;
+        let targetCamY = player.y - canvas.height / 2;
+        camera.x += (targetCamX - camera.x) * 0.1;
+        camera.y += (targetCamY - camera.y) * 0.1;
+    }
+
+    function addProgress(val) {
+        player.evolutionProgress += val;
+        if (player.evolutionProgress >= player.maxProgress) {
+            player.evolutionProgress = 0;
+            if (player.type === TYPE.CHICKEN) updateUI("满级小鸡！寻找符文进化", "#2ed573");
+            else if (player.type === TYPE.TEMP_FOX) {
+                player.type = TYPE.FOX; updateUI("转正成功！你成为了真正的狐狸！", "#ffa502");
+            }
+        }
+        document.getElementById('progress-fill').style.width = Math.min(100, player.evolutionProgress) + "%";
+    }
+
+    function updateUI(text, color) {
+        const txt = document.getElementById('status-text');
+        txt.innerText = text; txt.style.color = color;
+    }
+
+    // --- 绘制逻辑 ---
+    function drawCharacter(ctx, x, y, type, isEnemy = false) {
+        if (type === TYPE.CHICKEN) {
+            ctx.fillStyle = "#fff"; ctx.strokeStyle = "#a4b0be"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            // 鸡冠
+            ctx.fillStyle = "#ff4757"; ctx.beginPath(); ctx.arc(x+6, y-10, 5, 0, Math.PI*2); ctx.fill();
+            // 嘴巴
+            ctx.fillStyle = "#ffa502"; ctx.beginPath(); ctx.moveTo(x+16, y); ctx.lineTo(x+22, y-3); ctx.lineTo(x+16, y-6); ctx.fill();
+        } else {
+            ctx.fillStyle = isEnemy ? "#ff4757" : "#ff7f50"; // 敌方狐狸偏红
+            ctx.strokeStyle = "#d35400"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            // 耳朵
+            ctx.beginPath(); ctx.moveTo(x-12, y-12); ctx.lineTo(x-18, y-30); ctx.lineTo(x, y-18); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(x+12, y-12); ctx.lineTo(x+18, y-30); ctx.lineTo(x, y-18); ctx.fill();
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save(); ctx.translate(-camera.x, -camera.y);
+
+        // 背景
+        ctx.fillStyle = "#7bed9f"; ctx.fillRect(camera.x, camera.y, canvas.width, canvas.height);
+        
+        // 豆子
+        ctx.fillStyle = "#2ed573"; for (let f of foods) { ctx.beginPath(); ctx.arc(f.x, f.y, 5, 0, Math.PI*2); ctx.fill(); }
+
+        // 符文
+        for (let r of runes) {
+            ctx.fillStyle = "#9c88ff"; ctx.beginPath(); ctx.arc(r.x, r.y, 14, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = "#c8d6e5"; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(r.x, r.y, 18 + Math.sin(Date.now()/150)*4, 0, Math.PI*2); ctx.stroke();
+        }
+
+        // 石头障碍物
+        ctx.fillStyle = "#747d8c"; ctx.strokeStyle = "#57606f"; ctx.lineWidth = 3;
+        for (let s of stones) {
+            ctx.beginPath(); ctx.arc(s.x, s.y, s.radius, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            // 石头高光
+            ctx.fillStyle = "#a4b0be"; ctx.beginPath(); ctx.arc(s.x-s.radius*0.3, s.y-s.radius*0.3, s.radius*0.3, 0, Math.PI*2); ctx.fill();
+        }
+
+        // 木箱障碍物
+        ctx.fillStyle = "#d1ccc0"; ctx.strokeStyle = "#84817a"; ctx.lineWidth = 4;
+        for (let c of crates) { 
+            ctx.fillRect(c.x, c.y, c.w, c.h); ctx.strokeRect(c.x, c.y, c.w, c.h); 
+            // 交叉木纹
+            ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x+c.w, c.y+c.h); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(c.x+c.w, c.y); ctx.lineTo(c.x, c.y+c.h); ctx.stroke();
+        }
+
+        // AI 绘制
+        for (let ai of aiChickens) {
+            drawCharacter(ctx, ai.x, ai.y, TYPE.CHICKEN);
+            if(ai.state === 'flee') { // 惊吓汗滴特效
+                ctx.fillStyle = "#70a1ff"; ctx.beginPath(); ctx.arc(ai.x+15, ai.y-20, 3, 0, Math.PI*2); ctx.fill();
+            }
+        }
+        for (let ai of aiFoxes) {
+            drawCharacter(ctx, ai.x, ai.y, TYPE.FOX, true);
+            if(ai.state === 'chase') { // 发怒红眼
+                ctx.fillStyle = "red"; ctx.beginPath(); ctx.arc(ai.x, ai.y-5, 4, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        // 玩家闪现残影
+        for (let eff of player.flashEffects) {
+            ctx.globalAlpha = eff.alpha * 0.5; drawCharacter(ctx, eff.x, eff.y, player.type);
+        }
+        ctx.globalAlpha = 1.0;
+
+        // 玩家实体
+        if(gameActive) {
+            if (player.inBush) ctx.globalAlpha = 0.5;
+            drawCharacter(ctx, player.x, player.y, player.type);
+            ctx.globalAlpha = 1.0;
+
+            // 狐狸倒计时
+            if (player.type === TYPE.TEMP_FOX) {
+                let s = Math.ceil(player.tempFoxTimer / 60);
+                ctx.fillStyle = "#fff"; ctx.font = "bold 22px Arial";
+                ctx.shadowColor = "#000"; ctx.shadowBlur = 4;
+                ctx.fillText(s + "s", player.x - 12, player.y - 35);
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        // 草丛覆盖层
+        ctx.globalAlpha = 0.85; ctx.fillStyle = "#2ed573"; ctx.strokeStyle = "#2f3542"; ctx.lineWidth = 3;
+        for (let b of bushes) {
+            ctx.fillRect(b.x, b.y, b.w, b.h); ctx.strokeRect(b.x, b.y, b.w, b.h);
+            ctx.fillStyle = "#1e90ff"; // 画几朵小花点缀
+            ctx.fillRect(b.x+20, b.y+20, 6, 6); ctx.fillRect(b.x+b.w-30, b.y+b.h-30, 6, 6);
+            ctx.fillStyle = "#2ed573";
+        }
+
+        ctx.restore();
+    }
+
+    function gameLoop() {
+        update(); draw();
+        if(gameActive && player.type === TYPE.TEMP_FOX) {
+            let s = Math.ceil(player.tempFoxTimer/60);
+            document.getElementById('status-text').innerText = `【变身狐狸】吃鸡转正！剩余: ${s}秒`;
+        }
+        requestAnimationFrame(gameLoop);
+    }
+
+    resetGame();
+    gameLoop();
+</script>
+</body>
+</html>
