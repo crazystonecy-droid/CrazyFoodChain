@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>疯狂食物链 - 草丛伏击 V13</title>
+    <title>疯狂食物链 - 核心数值 V14</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
@@ -73,7 +73,7 @@
     <div id="ui-layer">
         <div id="top-bar">
             <div id="status-text">小鸡 - 努力吃豆子进化！</div>
-            <div id="progress-bg"><div id="progress-fill"></div><div id="progress-text">0 / 100</div></div>
+            <div id="progress-bg"><div id="progress-fill"></div><div id="progress-text">0 / 150</div></div>
         </div>
         <div id="joystick-zone"><div id="joystick-knob"></div></div>
         <div id="dash-btn">闪<div id="dash-cd"></div></div>
@@ -109,6 +109,33 @@
         CROC: "#6f9f59", CROC_OUT: "#466b35",
         DINO: "#8d9964", DINO_OUT: "#5d673f" 
     };
+
+    // ★ 严密的价值与升级数值体系 ★
+    function getEntityValue(type) {
+        if(type === 1) return 50;   // 鸡价值 50
+        if(type === 2) return 100;  // 狐狸价值 100
+        if(type === 3) return 200;  // 狼价值 200
+        if(type === 4) return 400;  // 鳄鱼价值 400
+        if(type === 5) return 800;  // 恐龙价值 800
+        return 0;
+    }
+    
+    function getNeedExp(tier) {
+        if(tier === 1) return 150;  // 升狐狸需要 150 能量 (吃3只鸡)
+        if(tier === 2) return 400;  // 升狼王需要 400 能量 (吃4只狐狸)
+        if(tier === 3) return 1000; // 升鳄鱼需要 1000 能量 (吃5只狼)
+        if(tier === 4) return 2000; // 升恐龙需要 2000 能量 (吃5只鳄鱼)
+        return 99999;
+    }
+
+    function getEntityProps(type) {
+        if(type === 1) return { r: 16, name: "小鸡", color: COLORS.CHICKEN }; 
+        if(type === 2) return { r: 24, name: "赤狐", color: COLORS.FOX };
+        if(type === 3) return { r: 30, name: "灰狼", color: COLORS.WOLF };
+        if(type === 4) return { r: 35, name: "巨鳄", color: COLORS.CROC };
+        if(type === 5) return { r: 45, name: "三角龙", color: COLORS.DINO };
+        return { r: 16 };
+    }
 
     function getSafeSpawn(radius) {
         let x, y, safe = false, attempts = 0;
@@ -147,11 +174,15 @@
         runes.push({ x: pos.x, y: pos.y, rType: chosenType, emoji: emoji, name: rName, createTime: Date.now() });
     }
 
+    // ★ 精确等价爆装系统：动物价值 / 金豆价值(5) = 爆出金豆的数量 ★
     function dropLoot(x, y, tier) {
-        let count = tier * 12; 
+        let totalValue = getEntityValue(tier); // 获取该动物身上的总能量价值
+        let count = Math.floor(totalValue / 5); // 每颗金豆子价值5，计算要爆多少颗
+        
         for(let i=0; i<count; i++) {
-            if (foods.length > 500) break; 
-            let offsetX = (Math.random() - 0.5) * tier * 50; let offsetY = (Math.random() - 0.5) * tier * 50;
+            if (foods.length > 500) break; // 防止满地都是卡死
+            let offsetX = (Math.random() - 0.5) * tier * 50; 
+            let offsetY = (Math.random() - 0.5) * tier * 50;
             foods.push({ x: x + offsetX, y: y + offsetY, val: 5 }); 
         }
     }
@@ -164,28 +195,13 @@
         });
     }
 
-    // 给每个草丛增加一个唯一ID，用于视野判断
     function initEnvironment() {
         bushes = []; crates = []; stones = []; foods = []; runes = []; aiList = []; nemesisId = null; flyingExp = [];
         
         for(let i=0; i<30; i++) bushes.push({ id: i, x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, r: 80+Math.random()*60 });
-        for(let i=0; i<150; i++) foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 3 });
+        for(let i=0; i<150; i++) foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 1 }); // 小绿豆现在价值 1
         for(let i=0; i<40; i++) spawnAI(TYPE.CHICKEN);
         for(let i=0; i<MAX_RUNES; i++) spawnDynamicRune();
-    }
-
-    function getNeedExp(tier) {
-        if(tier === 1) return 100; if(tier === 2) return 300;
-        if(tier === 3) return 800; if(tier === 4) return 1500; return 9999;
-    }
-
-    function getEntityProps(type) {
-        if(type === 1) return { r: 16, name: "小鸡", color: COLORS.CHICKEN }; 
-        if(type === 2) return { r: 24, name: "赤狐", color: COLORS.FOX };
-        if(type === 3) return { r: 30, name: "灰狼", color: COLORS.WOLF }; // 狼的体型稍微调大一点
-        if(type === 4) return { r: 35, name: "巨鳄", color: COLORS.CROC };
-        if(type === 5) return { r: 45, name: "三角龙", color: COLORS.DINO };
-        return { r: 16 };
     }
 
     function fullResetGame() {
@@ -254,7 +270,7 @@
     });
 
     function showKillText(x, y, text, color, isBig = false) {
-        floatingTexts.push({ x: x, y: y - 30, text: text, alpha: 1.0, color: color, font: `900 ${isBig ? "36px" : "22px"} 'Segoe UI'` });
+        floatingTexts.push({ x: x, y: y - 30, text: text, alpha: 1.0, color: color, font: `900 ${isBig ? "32px" : "18px"} 'Segoe UI'` });
     }
 
     function changePlayerType(newType, isTemp) {
@@ -286,13 +302,8 @@
         for(let i = floatingTexts.length-1; i>=0; i--) { floatingTexts[i].y -= 1.5; floatingTexts[i].alpha -= 0.015; if(floatingTexts[i].alpha <= 0) floatingTexts.splice(i, 1); }
         for (let i = player.flashEffects.length - 1; i >= 0; i--) { player.flashEffects[i].alpha -= 0.06; if (player.flashEffects[i].alpha <= 0) player.flashEffects.splice(i, 1); }
 
-        // ★ 核心视野机制更新：玩家草丛判定 ★
         player.inBushId = -1;
-        for (let b of bushes) { 
-            if (Math.hypot(player.x - b.x, player.y - b.y) < b.r) { 
-                player.inBushId = b.id; break; 
-            } 
-        }
+        for (let b of bushes) { if (Math.hypot(player.x - b.x, player.y - b.y) < b.r) { player.inBushId = b.id; break; } }
 
         if (player.isTemp) {
             player.tempTimer--;
@@ -310,7 +321,7 @@
             if (circleIntersect(player, {x: foods[i].x, y: foods[i].y, radius: 5})) {
                 let val = foods[i].val;
                 flyingExp.push({ x: foods[i].x, y: foods[i].y, val: val });
-                foods.splice(i, 1); foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 3 });
+                foods.splice(i, 1); foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 1 });
             }
         }
 
@@ -320,7 +331,12 @@
                 let canEat = false;
                 if (r.rType > player.type) { canEat = true; } 
                 else if (r.rType === player.type && player.isTemp) { canEat = true; }
-                if (canEat) { changePlayerType(r.rType, true); eaten = true; }
+                
+                if (canEat) { 
+                    changePlayerType(r.rType, true); eaten = true; 
+                    // ★ 新增：吃到符文头顶爆字反馈 ★
+                    showKillText(player.x, player.y, `⚡ 拾取 ${r.name} (20s)`, getEntityProps(r.rType).color, true);
+                }
             }
             if (!eaten) {
                 for(let ai of aiList) {
@@ -335,16 +351,11 @@
         for (let i = aiList.length - 1; i >= 0; i--) {
             let ai = aiList[i]; 
             
-            // ★ AI 草丛判定 ★
             ai.inBushId = -1;
-            for (let b of bushes) { 
-                if (Math.hypot(ai.x - b.x, ai.y - b.y) < b.r) { ai.inBushId = b.id; break; } 
-            }
+            for (let b of bushes) { if (Math.hypot(ai.x - b.x, ai.y - b.y) < b.r) { ai.inBushId = b.id; break; } }
 
             let distToPlayer = Math.hypot(player.x - ai.x, player.y - ai.y);
             let canBeEatenByAI = (player.type < ai.type && player.invincibleTimer <= 0);
-            
-            // AI 也受草丛视野影响：如果玩家在草丛里，AI（在外面）看不见玩家，就不会追杀或逃跑
             let canSeePlayer = (player.inBushId === -1 || player.inBushId === ai.inBushId);
 
             if (canSeePlayer && distToPlayer < (player.radius + ai.radius + 200)) {
@@ -371,12 +382,15 @@
                     if(ai.id === nemesisId) { showKillText(player.x, player.y, "复仇成功！", "#e74c3c", true); nemesisId = null; } 
                     else { showKillText(player.x, player.y, "一口吞!", "#e67e22", player.type>=4); }
                     
-                    dropLoot(ai.x, ai.y, ai.type); 
+                    dropLoot(ai.x, ai.y, ai.type); // AI死后爆装
+                    // 直接获取被吃动物本体的价值，加入自己的经验
+                    addProgress(getEntityValue(ai.type)); 
+                    
                     aiList.splice(i, 1); setTimeout(()=> spawnAI(TYPE.CHICKEN), 5000); 
                 } 
                 else if (canBeEatenByAI) { 
                     gameActive = false; nemesisId = ai.id; 
-                    dropLoot(player.x, player.y, player.type); 
+                    dropLoot(player.x, player.y, player.type); // 玩家死后爆装
                     document.getElementById('death-modal-overlay').style.display = 'flex';
                 }
             }
@@ -400,9 +414,9 @@
         let need1 = getNeedExp(1); let need2 = getNeedExp(2); let need3 = getNeedExp(3); let need4 = getNeedExp(4);
         
         if(player.exp >= need1 && player.type < TYPE.FOX) { player.exp -= need1; changePlayerType(TYPE.FOX, false); }
-        else if(player.exp >= need2 && player.type < TYPE.WOLF) { player.exp -= need2; changePlayerType(TYPE.WOLF, false); }
-        else if(player.exp >= need3 && player.type < TYPE.CROC) { player.exp -= need3; changePlayerType(TYPE.CROC, false); }
-        else if(player.exp >= need4 && player.type < TYPE.DINO) { player.exp = 9999; changePlayerType(TYPE.DINO, false); }
+        else if(player.exp >= need1+need2 && player.type < TYPE.WOLF) { player.exp -= (need1+need2); changePlayerType(TYPE.WOLF, false); }
+        else if(player.exp >= need1+need2+need3 && player.type < TYPE.CROC) { player.exp -= (need1+need2+need3); changePlayerType(TYPE.CROC, false); }
+        else if(player.exp >= need1+need2+need3+need4 && player.type < TYPE.DINO) { player.exp = 99999; changePlayerType(TYPE.DINO, false); }
         refreshProgressUI();
     }
 
@@ -411,18 +425,18 @@
             document.getElementById('progress-fill').style.width = "100%"; document.getElementById('progress-text').innerText = "MAX 王者";
         } else {
             let displayTier = player.isTemp ? 1 : player.type; 
-            if(player.exp >= getNeedExp(1)) displayTier = 2;
-            if(player.exp >= getNeedExp(1)+getNeedExp(2)) displayTier = 3;
-            let need = getNeedExp(displayTier);
             
-            let relativeExp = player.exp;
-            if(displayTier > 1) relativeExp -= getNeedExp(1);
-            if(displayTier > 2) relativeExp -= getNeedExp(2);
-            if(displayTier > 3) relativeExp -= getNeedExp(3);
-
-            let percent = Math.min(100, (Math.max(0, relativeExp) / need) * 100);
+            // 找出当前的黄条属于哪个阶段
+            let currentPhaseExp = player.exp;
+            if(player.exp >= getNeedExp(1)) { displayTier = 2; currentPhaseExp -= getNeedExp(1); }
+            if(player.exp >= getNeedExp(1)+getNeedExp(2)) { displayTier = 3; currentPhaseExp -= getNeedExp(2); }
+            if(player.exp >= getNeedExp(1)+getNeedExp(2)+getNeedExp(3)) { displayTier = 4; currentPhaseExp -= getNeedExp(3); }
+            
+            let need = getNeedExp(displayTier);
+            let percent = Math.min(100, (Math.max(0, currentPhaseExp) / need) * 100);
+            
             document.getElementById('progress-fill').style.width = percent + "%";
-            document.getElementById('progress-text').innerText = `${Math.floor(Math.max(0, relativeExp))} / ${need}`;
+            document.getElementById('progress-text').innerText = `${Math.floor(Math.max(0, currentPhaseExp))} / ${need}`;
         }
     }
 
@@ -432,16 +446,13 @@
         ctx.save(); ctx.translate(x, y); 
         let angle = Math.atan2(fy, fx) - Math.PI/2; 
         ctx.rotate(angle);
-        
         let r = getEntityProps(type).r;
 
         if (type === 1) { 
-            // 极简圆球小黄鸡
+            // 纯黄肉球小鸡
             ctx.fillStyle = COLORS.CHICKEN; ctx.strokeStyle = "#d35400"; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            // 尖嘴
             ctx.fillStyle = "#e67e22"; ctx.beginPath(); ctx.moveTo(-6, r-3); ctx.lineTo(6, r-3); ctx.lineTo(0, r+6); ctx.fill(); ctx.stroke();
-            // 豆豆眼
             ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(-6, r-6, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, r-6, 2.5, 0, Math.PI*2); ctx.fill();
         } 
         else if (type === 2) { 
@@ -457,22 +468,14 @@
             ctx.beginPath(); ctx.moveTo(12, r-12); ctx.lineTo(6, r-8); ctx.stroke();
         }
         else if (type === 3) { 
-            // ★ 全新霸气灰狼重绘 ★
             ctx.fillStyle = COLORS.WOLF; ctx.strokeStyle = COLORS.WOLF_OUT; ctx.lineWidth = 3;
-            // 尖锐竖耳
             ctx.beginPath(); ctx.moveTo(-14, -r+5); ctx.lineTo(-20, -r-15); ctx.lineTo(-6, -r); ctx.fill(); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(14, -r+5); ctx.lineTo(20, -r-15); ctx.lineTo(6, -r); ctx.fill(); ctx.stroke();
-            // 侧脸霸气毛发 (锯齿)
             ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(-r-8, r-10); ctx.lineTo(-r+2, r-5); ctx.fill(); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r+8, r-10); ctx.lineTo(r-2, r-5); ctx.fill(); ctx.stroke();
-            
-            // 头颅主圆
             ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            // 宽大白吻部
             ctx.fillStyle = "#dcdde1"; ctx.beginPath(); ctx.arc(0, r-5, r*0.5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            // 宽鼻头
             ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.ellipse(0, r, 7, 4, 0, 0, Math.PI*2); ctx.fill();
-            // 凶狠上挑的狼眼
             ctx.beginPath(); ctx.moveTo(-15, r-18); ctx.lineTo(-5, r-12); ctx.lineTo(-12, r-10); ctx.fill();
             ctx.beginPath(); ctx.moveTo(15, r-18); ctx.lineTo(5, r-12); ctx.lineTo(12, r-10); ctx.fill();
         }
@@ -511,12 +514,11 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.save(); ctx.translate(-camera.x, -camera.y);
 
         ctx.fillStyle = "#d8e3d6"; ctx.fillRect(camera.x, camera.y, MAP_SIZE, MAP_SIZE); 
-        
         ctx.strokeStyle = "rgba(100,100,100,0.1)"; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(500,0); ctx.lineTo(500,MAP_SIZE); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,1000); ctx.lineTo(MAP_SIZE,1000); ctx.stroke();
 
         for (let f of foods) { 
-            ctx.fillStyle = f.val === 5 ? "#e67e22" : "#f1c40f"; ctx.beginPath(); ctx.arc(f.x, f.y, f.val === 5 ? 8 : 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = f.val === 5 ? "#e67e22" : "#f1c40f"; ctx.beginPath(); ctx.arc(f.x, f.y, f.val === 5 ? 8 : 4, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.arc(f.x, f.y, f.val === 5 ? 4 : 2, 0, Math.PI*2); ctx.fill();
         }
 
@@ -542,29 +544,22 @@
             ctx.restore();
         }
 
-        // 画草丛的底色
         for (let b of bushes) { 
             ctx.fillStyle = "rgba(170, 190, 160, 0.4)"; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(b.x-b.r/2, b.y+b.r/3, b.r*0.8, 0, Math.PI*2); ctx.fill();
         } 
 
-        // ★ 核心视野渲染：AI 躲草丛隐身判定 ★
         for (let ai of aiList) {
             let visible = true;
-            // 如果 AI 在草里，且玩家没在这个草里，AI 就隐身！
-            if (ai.inBushId !== -1 && player.inBushId !== ai.inBushId) {
-                visible = false;
-            }
-            if (visible) {
-                drawCharacter(ctx, ai.x, ai.y, ai.type, ai.faceX, ai.faceY, true, ai.id === nemesisId);
-            }
+            if (ai.inBushId !== -1 && player.inBushId !== ai.inBushId) visible = false;
+            if (visible) drawCharacter(ctx, ai.x, ai.y, ai.type, ai.faceX, ai.faceY, true, ai.id === nemesisId);
         }
 
         for (let eff of player.flashEffects) { ctx.globalAlpha = eff.alpha * 0.3; drawCharacter(ctx, eff.x, eff.y, eff.type, eff.faceX, eff.faceY); }
         ctx.globalAlpha = 1.0;
 
         if(gameActive) {
-            if (player.inBushId !== -1) ctx.globalAlpha = 0.5; // 玩家进草丛半透明
+            if (player.inBushId !== -1) ctx.globalAlpha = 0.5; 
             
             if(player.invincibleTimer > 0) {
                 ctx.save(); ctx.translate(player.x, player.y);
