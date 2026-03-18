@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>疯狂食物链 - 视觉重制 V12</title>
+    <title>疯狂食物链 - 草丛伏击 V13</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
@@ -82,7 +82,6 @@
         <div class="modal-box">
             <h1 class="modal-title">你被吃掉了！</h1>
             <p class="modal-desc">你的豆子全爆了！</p>
-            <!-- ★ 重制复活面板按钮 ★ -->
             <button class="btn btn-revive" onclick="revivePlayer()">🔥 立即复仇 (带保护伞)</button>
             <button class="btn btn-leave" onclick="fullResetGame()">🚪 离开房间 (重新匹配)</button>
         </div>
@@ -103,9 +102,8 @@
     let floatingTexts = []; let flyingExp = []; 
     let gameActive = true; let aiIdCounter = 1; let nemesisId = null; 
 
-    // 动物主色调
     const COLORS = {
-        CHICKEN: "#f1c40f", // 黄色
+        CHICKEN: "#f1c40f", 
         FOX: "#eb7c25", FOX_OUT: "#b95311",
         WOLF: "#878f9b", WOLF_OUT: "#5a626c",
         CROC: "#6f9f59", CROC_OUT: "#466b35",
@@ -144,7 +142,6 @@
         if (maxTier >= TYPE.CROC) allowed.push(TYPE.DINO);
         let chosenType = allowed[Math.floor(Math.random() * allowed.length)];
         let pos = getSafeSpawn(20);
-        
         let emoji = chosenType===TYPE.FOX?'🦊':chosenType===TYPE.WOLF?'🐺':chosenType===TYPE.CROC?'🐊':'🦖';
         let rName = chosenType===TYPE.FOX?'狐狸符文':chosenType===TYPE.WOLF?'狼王符文':chosenType===TYPE.CROC?'鳄鱼符文':'恐龙符文';
         runes.push({ x: pos.x, y: pos.y, rType: chosenType, emoji: emoji, name: rName, createTime: Date.now() });
@@ -154,8 +151,7 @@
         let count = tier * 12; 
         for(let i=0; i<count; i++) {
             if (foods.length > 500) break; 
-            let offsetX = (Math.random() - 0.5) * tier * 50;
-            let offsetY = (Math.random() - 0.5) * tier * 50;
+            let offsetX = (Math.random() - 0.5) * tier * 50; let offsetY = (Math.random() - 0.5) * tier * 50;
             foods.push({ x: x + offsetX, y: y + offsetY, val: 5 }); 
         }
     }
@@ -164,16 +160,16 @@
         let props = getEntityProps(type); let pos = getSafeSpawn(props.r);
         aiList.push({
             id: aiIdCounter++, type: type, x: pos.x, y: pos.y, 
-            vx: 0, vy: 0, faceX: 1, faceY: 0, speed: GLOBAL_SPEED, radius: props.r, state: 'wander'
+            vx: 0, vy: 0, faceX: 1, faceY: 0, speed: GLOBAL_SPEED, radius: props.r, state: 'wander', inBushId: -1
         });
     }
 
+    // 给每个草丛增加一个唯一ID，用于视野判断
     function initEnvironment() {
         bushes = []; crates = []; stones = []; foods = []; runes = []; aiList = []; nemesisId = null; flyingExp = [];
         
-        for(let i=0; i<30; i++) bushes.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, r: 80+Math.random()*60 });
+        for(let i=0; i<30; i++) bushes.push({ id: i, x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, r: 80+Math.random()*60 });
         for(let i=0; i<150; i++) foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 3 });
-        
         for(let i=0; i<40; i++) spawnAI(TYPE.CHICKEN);
         for(let i=0; i<MAX_RUNES; i++) spawnDynamicRune();
     }
@@ -186,13 +182,12 @@
     function getEntityProps(type) {
         if(type === 1) return { r: 16, name: "小鸡", color: COLORS.CHICKEN }; 
         if(type === 2) return { r: 24, name: "赤狐", color: COLORS.FOX };
-        if(type === 3) return { r: 28, name: "灰狼", color: COLORS.WOLF };
+        if(type === 3) return { r: 30, name: "灰狼", color: COLORS.WOLF }; // 狼的体型稍微调大一点
         if(type === 4) return { r: 35, name: "巨鳄", color: COLORS.CROC };
         if(type === 5) return { r: 45, name: "三角龙", color: COLORS.DINO };
         return { r: 16 };
     }
 
-    // 离开房间 (完全重置)
     function fullResetGame() {
         document.getElementById('death-modal-overlay').style.display = 'none';
         initEnvironment();
@@ -200,24 +195,23 @@
         player = {
             x: safePos.x, y: safePos.y, radius: 16, speed: GLOBAL_SPEED, type: TYPE.CHICKEN,
             faceX: 1, faceY: 0, dashCooldown: 0, dashMaxCd: 180, flashEffects: [],
-            tempTimer: 0, tempMaxTime: 20 * 60, exp: 0, inBush: false, isTemp: false,
+            tempTimer: 0, tempMaxTime: 20 * 60, exp: 0, inBushId: -1, isTemp: false,
             invincibleTimer: INVINCIBLE_TIME 
         };
         camera.x = player.x - canvas.width / 2; camera.y = player.y - canvas.height / 2;
         gameActive = true; 
         document.getElementById('progress-fill').style.background = COLORS.CHICKEN;
         document.getElementById('dash-btn').style.background = COLORS.CHICKEN;
-        updateUI("全新开局！努力进化！", "#333"); refreshProgressUI();
+        updateUI("全新开局！努力吃豆子！", "#333"); refreshProgressUI();
     }
 
-    // 立即复仇 (保留复仇标记，重置玩家状态)
     function revivePlayer() {
         document.getElementById('death-modal-overlay').style.display = 'none';
         let safePos = getSafeSpawn(16);
         player = {
             x: safePos.x, y: safePos.y, radius: 16, speed: GLOBAL_SPEED, type: TYPE.CHICKEN,
             faceX: 1, faceY: 0, dashCooldown: 0, dashMaxCd: 180, flashEffects: [],
-            tempTimer: 0, tempMaxTime: 20 * 60, exp: 0, inBush: false, isTemp: false,
+            tempTimer: 0, tempMaxTime: 20 * 60, exp: 0, inBushId: -1, isTemp: false,
             invincibleTimer: INVINCIBLE_TIME 
         };
         camera.x = player.x - canvas.width / 2; camera.y = player.y - canvas.height / 2;
@@ -266,10 +260,8 @@
     function changePlayerType(newType, isTemp) {
         player.type = newType; player.isTemp = isTemp;
         let props = getEntityProps(newType); player.radius = props.r;
-        
         document.getElementById('progress-fill').style.background = props.color;
         document.getElementById('dash-btn').style.background = props.color;
-
         if(isTemp) { player.tempTimer = player.tempMaxTime; updateUI(`化身 ${props.name}！倒计时开始！`, props.color); } 
         else { updateUI(`进化！永久 ${props.name}！`, props.color); }
         refreshProgressUI();
@@ -294,8 +286,13 @@
         for(let i = floatingTexts.length-1; i>=0; i--) { floatingTexts[i].y -= 1.5; floatingTexts[i].alpha -= 0.015; if(floatingTexts[i].alpha <= 0) floatingTexts.splice(i, 1); }
         for (let i = player.flashEffects.length - 1; i >= 0; i--) { player.flashEffects[i].alpha -= 0.06; if (player.flashEffects[i].alpha <= 0) player.flashEffects.splice(i, 1); }
 
-        player.inBush = false;
-        for (let b of bushes) { if (Math.hypot(player.x - b.x, player.y - b.y) < b.r) { player.inBush = true; break; } }
+        // ★ 核心视野机制更新：玩家草丛判定 ★
+        player.inBushId = -1;
+        for (let b of bushes) { 
+            if (Math.hypot(player.x - b.x, player.y - b.y) < b.r) { 
+                player.inBushId = b.id; break; 
+            } 
+        }
 
         if (player.isTemp) {
             player.tempTimer--;
@@ -321,11 +318,8 @@
             let r = runes[i]; let eaten = false;
             if (circleIntersect(player, r)) {
                 let canEat = false;
-                if (r.rType > player.type) { 
-                    canEat = true; 
-                } else if (r.rType === player.type && player.isTemp) {
-                    canEat = true; 
-                }
+                if (r.rType > player.type) { canEat = true; } 
+                else if (r.rType === player.type && player.isTemp) { canEat = true; }
                 if (canEat) { changePlayerType(r.rType, true); eaten = true; }
             }
             if (!eaten) {
@@ -340,12 +334,20 @@
 
         for (let i = aiList.length - 1; i >= 0; i--) {
             let ai = aiList[i]; 
-            let distToPlayer = Math.hypot(player.x - ai.x, player.y - ai.y);
             
-            // ★ AI 避开无敌状态的玩家 ★
+            // ★ AI 草丛判定 ★
+            ai.inBushId = -1;
+            for (let b of bushes) { 
+                if (Math.hypot(ai.x - b.x, ai.y - b.y) < b.r) { ai.inBushId = b.id; break; } 
+            }
+
+            let distToPlayer = Math.hypot(player.x - ai.x, player.y - ai.y);
             let canBeEatenByAI = (player.type < ai.type && player.invincibleTimer <= 0);
             
-            if (distToPlayer < (player.radius + ai.radius + 200) && !player.inBush) {
+            // AI 也受草丛视野影响：如果玩家在草丛里，AI（在外面）看不见玩家，就不会追杀或逃跑
+            let canSeePlayer = (player.inBushId === -1 || player.inBushId === ai.inBushId);
+
+            if (canSeePlayer && distToPlayer < (player.radius + ai.radius + 200)) {
                 if (player.type > ai.type) { 
                     ai.state = 'flee'; let dirX = ai.x - player.x; let dirY = ai.y - player.y; let l = Math.hypot(dirX, dirY);
                     ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed;
@@ -366,8 +368,8 @@
 
             if (circleIntersect(player, ai)) {
                 if (player.type > ai.type) { 
-                    if(ai.id === nemesisId) { showKillText(player.x, player.y, "🔥 复仇成功！", "#e74c3c", true); nemesisId = null; } 
-                    else { showKillText(player.x, player.y, "一口吞!", "#f1c40f", player.type>=4); }
+                    if(ai.id === nemesisId) { showKillText(player.x, player.y, "复仇成功！", "#e74c3c", true); nemesisId = null; } 
+                    else { showKillText(player.x, player.y, "一口吞!", "#e67e22", player.type>=4); }
                     
                     dropLoot(ai.x, ai.y, ai.type); 
                     aiList.splice(i, 1); setTimeout(()=> spawnAI(TYPE.CHICKEN), 5000); 
@@ -380,8 +382,7 @@
             }
         }
 
-        let targetX = camera.x + canvas.width / 2;
-        let targetY = camera.y + 40; 
+        let targetX = camera.x + canvas.width / 2; let targetY = camera.y + 40; 
         for (let i = flyingExp.length - 1; i >= 0; i--) {
             let f = flyingExp[i];
             let dx = targetX - f.x; let dy = targetY - f.y; let dist = Math.hypot(dx, dy);
@@ -435,13 +436,13 @@
         let r = getEntityProps(type).r;
 
         if (type === 1) { 
-            // ★ 极简：纯圆黄球小鸡 (去掉了翅膀线条) ★
+            // 极简圆球小黄鸡
             ctx.fillStyle = COLORS.CHICKEN; ctx.strokeStyle = "#d35400"; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            // 橘色小尖嘴
+            // 尖嘴
             ctx.fillStyle = "#e67e22"; ctx.beginPath(); ctx.moveTo(-6, r-3); ctx.lineTo(6, r-3); ctx.lineTo(0, r+6); ctx.fill(); ctx.stroke();
             // 豆豆眼
-            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(-6, r-8, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, r-8, 2.5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(-6, r-6, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, r-6, 2.5, 0, Math.PI*2); ctx.fill();
         } 
         else if (type === 2) { 
             ctx.fillStyle = isEnemy ? "#e84118" : "#ff7f50"; ctx.strokeStyle = "#d35400"; ctx.lineWidth = 3;
@@ -456,14 +457,24 @@
             ctx.beginPath(); ctx.moveTo(12, r-12); ctx.lineTo(6, r-8); ctx.stroke();
         }
         else if (type === 3) { 
+            // ★ 全新霸气灰狼重绘 ★
             ctx.fillStyle = COLORS.WOLF; ctx.strokeStyle = COLORS.WOLF_OUT; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(-12, -r+5); ctx.lineTo(-20, -r-10); ctx.lineTo(-5, -r); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(12, -r+5); ctx.lineTo(20, -r-10); ctx.lineTo(5, -r); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#a8b1bd"; ctx.beginPath(); ctx.moveTo(-12, -r+2); ctx.lineTo(-17, -r-6); ctx.lineTo(-7, -r); ctx.fill();
-            ctx.beginPath(); ctx.moveTo(12, -r+2); ctx.lineTo(17, -r-6); ctx.lineTo(7, -r); ctx.fill();
-            ctx.fillStyle = COLORS.WOLF; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(0, r-2, 5, 0, Math.PI*2); ctx.fill(); 
-            ctx.beginPath(); ctx.moveTo(-10, r-12); ctx.lineTo(-5, r-15); ctx.lineTo(-4, r-10); ctx.fill(); ctx.beginPath(); ctx.moveTo(10, r-12); ctx.lineTo(5, r-15); ctx.lineTo(4, r-10); ctx.fill();
+            // 尖锐竖耳
+            ctx.beginPath(); ctx.moveTo(-14, -r+5); ctx.lineTo(-20, -r-15); ctx.lineTo(-6, -r); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(14, -r+5); ctx.lineTo(20, -r-15); ctx.lineTo(6, -r); ctx.fill(); ctx.stroke();
+            // 侧脸霸气毛发 (锯齿)
+            ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(-r-8, r-10); ctx.lineTo(-r+2, r-5); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r+8, r-10); ctx.lineTo(r-2, r-5); ctx.fill(); ctx.stroke();
+            
+            // 头颅主圆
+            ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            // 宽大白吻部
+            ctx.fillStyle = "#dcdde1"; ctx.beginPath(); ctx.arc(0, r-5, r*0.5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            // 宽鼻头
+            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.ellipse(0, r, 7, 4, 0, 0, Math.PI*2); ctx.fill();
+            // 凶狠上挑的狼眼
+            ctx.beginPath(); ctx.moveTo(-15, r-18); ctx.lineTo(-5, r-12); ctx.lineTo(-12, r-10); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(15, r-18); ctx.lineTo(5, r-12); ctx.lineTo(12, r-10); ctx.fill();
         }
         else if (type === 4) { 
             ctx.fillStyle = COLORS.CROC; ctx.strokeStyle = COLORS.CROC_OUT; ctx.lineWidth = 4;
@@ -524,44 +535,49 @@
             ctx.closePath(); ctx.fill(); ctx.stroke();
 
             ctx.fillStyle = "#fff"; ctx.font = "bold 22px 'Segoe UI'"; ctx.shadowColor = color; ctx.shadowBlur = 10;
-            ctx.fillText(r.emoji, 0, 2);
-            ctx.shadowBlur = 0;
+            ctx.fillText(r.emoji, 0, 2); ctx.shadowBlur = 0;
 
-            // ★ 符文中文提示词 (在下方) ★
             ctx.font = "bold 12px 'Segoe UI'"; ctx.fillStyle = "rgba(255,255,255,0.9)";
             ctx.fillText(r.name, 0, 35);
             ctx.restore();
         }
 
+        // 画草丛的底色
         for (let b of bushes) { 
             ctx.fillStyle = "rgba(170, 190, 160, 0.4)"; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(b.x-b.r/2, b.y+b.r/3, b.r*0.8, 0, Math.PI*2); ctx.fill();
         } 
 
-        for (let ai of aiList) { drawCharacter(ctx, ai.x, ai.y, ai.type, ai.faceX, ai.faceY, true, ai.id === nemesisId); }
+        // ★ 核心视野渲染：AI 躲草丛隐身判定 ★
+        for (let ai of aiList) {
+            let visible = true;
+            // 如果 AI 在草里，且玩家没在这个草里，AI 就隐身！
+            if (ai.inBushId !== -1 && player.inBushId !== ai.inBushId) {
+                visible = false;
+            }
+            if (visible) {
+                drawCharacter(ctx, ai.x, ai.y, ai.type, ai.faceX, ai.faceY, true, ai.id === nemesisId);
+            }
+        }
 
         for (let eff of player.flashEffects) { ctx.globalAlpha = eff.alpha * 0.3; drawCharacter(ctx, eff.x, eff.y, eff.type, eff.faceX, eff.faceY); }
         ctx.globalAlpha = 1.0;
 
         if(gameActive) {
-            if (player.inBush) ctx.globalAlpha = 0.5;
+            if (player.inBushId !== -1) ctx.globalAlpha = 0.5; // 玩家进草丛半透明
             
-            // ★ 绘制保护罩 + 保护期倒计时 ★
             if(player.invincibleTimer > 0) {
                 ctx.save(); ctx.translate(player.x, player.y);
                 ctx.beginPath(); ctx.arc(0, 0, player.radius + 10 + Math.sin(Date.now()/100)*5, 0, Math.PI*2);
                 ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"; ctx.lineWidth = 4; ctx.stroke(); 
                 
-                // 红色醒目保护倒计时
-                ctx.fillStyle = "#e74c3c"; ctx.font = "bold 16px 'Segoe UI'"; 
-                ctx.shadowColor = "white"; ctx.shadowBlur = 4; ctx.textAlign = "center";
-                ctx.fillText(`🛡️ 保护: ${Math.ceil(player.invincibleTimer/60)}s`, 0, -player.radius - 20);
+                ctx.fillStyle = "#e74c3c"; ctx.font = "bold 16px 'Segoe UI'"; ctx.shadowColor = "white"; ctx.shadowBlur = 4; ctx.textAlign = "center";
+                ctx.fillText(`🛡️ 保护期: ${Math.ceil(player.invincibleTimer/60)}s`, 0, -player.radius - 20);
                 ctx.restore();
             }
 
             drawCharacter(ctx, player.x, player.y, player.type, player.faceX, player.faceY, false); ctx.globalAlpha = 1.0;
             
-            // 绘制体验卡倒计时 (避开无敌文字)
             if (player.isTemp) {
                 let offset = player.invincibleTimer > 0 ? 45 : 20; 
                 ctx.fillStyle = "#333"; ctx.font = "bold 20px 'Segoe UI'"; ctx.shadowColor = "white"; ctx.shadowBlur = 3;
