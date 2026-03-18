@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>疯狂食物链 - 仙人掌迷宫 V21</title>
+    <title>疯狂食物链 - 猎手制裁 V22</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
@@ -140,7 +140,7 @@
         if(tier === 2) return 400;    // 狐狸变狼
         if(tier === 3) return 1000;   // 狼变鳄鱼
         if(tier === 4) return 4000;   // 鳄鱼变恐龙
-        if(tier === 5) return 40000;  // 恐龙变巨鲸 (深渊巨坑)
+        if(tier === 5) return 40000;  // 恐龙变巨鲸 
         return 999999;
     }
 
@@ -171,17 +171,20 @@
 
     function circleIntersect(c1, c2) { return Math.hypot(c1.x - c2.x, c1.y - c2.y) < (c1.radius + (c2.radius || 10)); }
 
+    // ★ 猎手制裁逻辑：始终开放比场上最高级多1级的符文 ★
     function spawnDynamicRune() {
         if (runes.length >= MAX_RUNES) return;
         let maxTier = player.type || 1; 
         for(let ai of aiList) { if(ai.type > maxTier) maxTier = ai.type; }
 
+        let allowedMax = Math.min(TYPE.WHALE, maxTier + 1); // 如果最高是恐龙(5)，就允许刷鲸鱼(6)
+
         let pool = [];
         pool.push({ type: TYPE.FOX, weight: 100 }); 
-        if (maxTier >= TYPE.FOX) pool.push({ type: TYPE.WOLF, weight: 35 });
-        if (maxTier >= TYPE.WOLF) pool.push({ type: TYPE.CROC, weight: 12 });
-        if (maxTier >= TYPE.CROC) pool.push({ type: TYPE.DINO, weight: 3 });  
-        if (maxTier >= TYPE.DINO) pool.push({ type: TYPE.WHALE, weight: 1 }); 
+        if (allowedMax >= TYPE.WOLF) pool.push({ type: TYPE.WOLF, weight: 45 });
+        if (allowedMax >= TYPE.CROC) pool.push({ type: TYPE.CROC, weight: 25 });
+        if (allowedMax >= TYPE.DINO) pool.push({ type: TYPE.DINO, weight: 12 });  
+        if (allowedMax >= TYPE.WHALE) pool.push({ type: TYPE.WHALE, weight: 6 }); 
 
         let totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
         let randomNum = Math.random() * totalWeight;
@@ -220,26 +223,29 @@
         // 生成草丛
         for(let i=0; i<45; i++) bushes.push({ id: i, x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, r: 80+Math.random()*80 });
         
-        // ★ 生成成排的仙人掌 (构成狭窄通道) ★
-        for(let i=0; i<35; i++) {
-            let cx = 300 + Math.random()*(MAP_SIZE-600); let cy = 300 + Math.random()*(MAP_SIZE-600);
-            let num = 3 + Math.floor(Math.random()*4); // 每排3到6个
-            let angle = Math.random() * Math.PI * 2;
-            let spacing = 95; // 间距。仙人掌r=20，因此缝隙宽度为 55px (狐狸48可通过，狼60会被扎)
+        // ★ 生成更加自然散落的仙人掌群落 (Cluster) ★
+        for(let i=0; i<45; i++) {
+            let cx = 200 + Math.random()*(MAP_SIZE-400); let cy = 200 + Math.random()*(MAP_SIZE-400);
+            let num = 3 + Math.floor(Math.random()*3); // 3到5个为一簇
             for(let j=0; j<num; j++) {
-                cacti.push({ x: cx + Math.cos(angle) * j * spacing, y: cy + Math.sin(angle) * j * spacing, radius: 20 });
+                let r = 15 + Math.random() * 15; // 大小不一
+                let offsetDist = Math.random() * 50; // 分布在中心点周围
+                let offsetAngle = Math.random() * Math.PI * 2;
+                cacti.push({ 
+                    x: cx + Math.cos(offsetAngle) * offsetDist, 
+                    y: cy + Math.sin(offsetAngle) * offsetDist, 
+                    radius: r 
+                });
             }
         }
 
-        for(let i=0; i<150; i++) foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 1 }); 
+        for(let i=0; i<200; i++) foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 1 }); 
 
-        for(let i=0; i<80; i++) spawnAI(TYPE.CHICKEN);
+        // ★ 增加小鸡的数量，底层食物链极其繁荣 ★
+        for(let i=0; i<150; i++) spawnAI(TYPE.CHICKEN);
         for(let i=0; i<15; i++) spawnAI(TYPE.FOX);
         for(let i=0; i<5; i++) spawnAI(TYPE.WOLF);
-
-        // ★ 开局直接生成2只巨鲸让你过目！ ★
-        spawnAI(TYPE.WHALE);
-        spawnAI(TYPE.WHALE);
+        // (移除开局野生巨鲸，保证生态循序渐进，符文由生态进化解锁)
 
         for(let i=0; i<MAX_RUNES; i++) spawnDynamicRune();
     }
@@ -388,26 +394,24 @@
         player.inBushId = -1;
         for (let b of bushes) { if (Math.hypot(player.x - b.x, player.y - b.y) < b.r) { player.inBushId = b.id; break; } }
 
-        // ★ 仙人掌碰撞检测 (玩家) ★
+        // 仙人掌碰撞检测 (玩家)
         for (let c of cacti) {
             if (circleIntersect(player, c)) {
-                // 只有大于等于 灰狼(TYPE.WOLF) 才会受到仙人掌伤害，小鸡狐狸免疫
                 if (player.type >= TYPE.WOLF && !player.isTemp && player.invincibleTimer <= 0) {
-                    player.exp -= 4; // 每帧掉血，强行通过会大掉血
+                    player.exp -= 4; 
                     if (Math.random() < 0.1) showKillText(player.x + (Math.random()-0.5)*30, player.y, "-EXP", "#e74c3c", false);
 
-                    if (player.exp < 0) { // 掉级机制
+                    if (player.exp < 0) { 
                         player.type--; 
                         let props = getEntityProps(player.type);
                         player.radius = props.r;
-                        player.exp = getNeedExp(player.type) * 0.9; // 退级后保留90%管血
-                        updateUI(`🌵 被仙人掌扎破体格！退化为 ${props.name}！`, "#e74c3c");
+                        player.exp = getNeedExp(player.type) * 0.9; 
+                        updateUI(`🌵 仙人掌扎破体格！退化为 ${props.name}！`, "#e74c3c");
                         document.getElementById('progress-fill').style.background = props.color;
                         document.getElementById('dash-btn').style.background = props.color;
                     }
                     refreshProgressUI();
                 }
-                // 所有碰到的动物都会受到轻微的阻力排斥 (减速)
                 let dx = player.x - c.x, dy = player.y - c.y; let d = Math.hypot(dx, dy);
                 if (d > 0) { player.x += (dx/d)*2.5; player.y += (dy/d)*2.5; }
             }
@@ -485,7 +489,7 @@
                 }
             }
 
-            // ★ 仙人掌碰撞检测 (AI) ★
+            // 仙人掌碰撞检测 (AI)
             for (let c of cacti) {
                 if (circleIntersect(ai, c)) {
                     if (ai.type >= TYPE.WOLF) {
@@ -493,7 +497,7 @@
                         if(ai.exp < 0) { ai.type--; ai.radius = getEntityProps(ai.type).r; ai.exp = getNeedExp(ai.type)*0.9; }
                     }
                     let dx = ai.x - c.x, dy = ai.y - c.y; let d = Math.hypot(dx, dy);
-                    if (d > 0) { ai.x += (dx/d)*2.5; ai.y += (dy/d)*2.5; targetSet = true; ai.vx = (dx/d)*ai.speed; ai.vy = (dy/d)*ai.speed; } // AI被扎后反弹
+                    if (d > 0) { ai.x += (dx/d)*2.5; ai.y += (dy/d)*2.5; targetSet = true; ai.vx = (dx/d)*ai.speed; ai.vy = (dy/d)*ai.speed; }
                 }
             }
 
@@ -718,10 +722,8 @@
             ctx.beginPath(); ctx.arc(b.x-b.r/2, b.y+b.r/3, b.r*0.8, 0, Math.PI*2); ctx.fill();
         } 
 
-        // ★ 绘制仙人掌 ★
         for (let c of cacti) {
             ctx.save(); ctx.translate(c.x, c.y);
-            // 仙人掌尖刺
             ctx.fillStyle = "#27ae60"; ctx.beginPath();
             for(let i=0; i<Math.PI*2; i+=Math.PI/6) {
                 ctx.lineTo(Math.cos(i)*c.radius, Math.sin(i)*c.radius);
@@ -729,7 +731,6 @@
             }
             ctx.closePath(); ctx.fill();
             ctx.strokeStyle = "#2ecc71"; ctx.lineWidth = 2; ctx.stroke();
-            // 仙人掌本体质感
             ctx.fillStyle = "#2ecc71"; ctx.beginPath(); ctx.arc(-c.radius/3, -c.radius/3, c.radius/4, 0, Math.PI*2); ctx.fill();
             ctx.restore();
         }
