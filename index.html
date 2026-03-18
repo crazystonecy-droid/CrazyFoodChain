@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>疯狂食物链 - 复仇雷达 V15</title>
+    <title>疯狂食物链 - 真实生态 V16</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
@@ -66,19 +66,6 @@
         }
         .btn-revive { background: #e74c3c; border: 2px solid #c0392b; }
         .btn-leave { background: #95a5a6; border: 2px solid #7f8c8d; margin-bottom: 0; }
-
-        /* 动态复仇雷达箭头 */
-        #radar-arrow {
-            position: absolute; width: 0; height: 0;
-            border-left: 15px solid transparent; border-right: 15px solid transparent;
-            border-bottom: 30px solid #ff3838; /* 红色箭头指向外侧 */
-            transform-origin: 15px 40px; /* 旋转中心靠下 */
-            display: none; z-index: 5;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-            animation: pulseRadar 0.5s infinite alternate;
-        }
-        @keyframes pulseRadar { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.2); opacity: 1; } }
-
     </style>
 </head>
 <body>
@@ -90,9 +77,6 @@
         </div>
         <div id="joystick-zone"><div id="joystick-knob"></div></div>
         <div id="dash-btn">闪<div id="dash-cd"></div></div>
-        
-        <!-- 边缘指示器 -->
-        <div id="radar-arrow"></div>
     </div>
     <div id="death-modal-overlay">
         <div class="modal-box">
@@ -112,7 +96,7 @@
 
     const TYPE = { CHICKEN: 1, FOX: 2, WOLF: 3, CROC: 4, DINO: 5 };
     const GLOBAL_SPEED = 4.5; const MAP_SIZE = 4000; const INVINCIBLE_TIME = 15 * 60; const MAX_RUNES = 12;
-    const BOUNDARY_THICKNESS = 40; // 边界墙厚度
+    const BOUNDARY_THICKNESS = 40; 
 
     let camera = { x: 0, y: 0 }; let player = {};
     let bushes = [], crates = [], stones = [], foods = [], runes = [], aiList = [];
@@ -153,7 +137,6 @@
         return { r: 16 };
     }
 
-    // 考虑边界墙的安全生成点
     function getSafeSpawn(radius) {
         let x, y, safe = false, attempts = 0;
         let pad = BOUNDARY_THICKNESS + radius + 10;
@@ -164,11 +147,8 @@
         return { x: x, y: y };
     }
 
-    // ★ 强化碰撞检测，加入边界墙判定 ★
     function isColliding(x, y, r) {
-        if(x - r < BOUNDARY_THICKNESS || x + r > MAP_SIZE - BOUNDARY_THICKNESS || 
-           y - r < BOUNDARY_THICKNESS || y + r > MAP_SIZE - BOUNDARY_THICKNESS) return true;
-        
+        if(x - r < BOUNDARY_THICKNESS || x + r > MAP_SIZE - BOUNDARY_THICKNESS || y - r < BOUNDARY_THICKNESS || y + r > MAP_SIZE - BOUNDARY_THICKNESS) return true;
         for (let c of crates) {
             let tx = x, ty = y;
             if (x < c.x) tx = c.x; else if (x > c.x + c.w) tx = c.x + c.w;
@@ -209,7 +189,8 @@
         let props = getEntityProps(type); let pos = getSafeSpawn(props.r);
         aiList.push({
             id: aiIdCounter++, type: type, x: pos.x, y: pos.y, 
-            vx: 0, vy: 0, faceX: 1, faceY: 0, speed: GLOBAL_SPEED, radius: props.r, state: 'wander', inBushId: -1
+            vx: 0, vy: 0, faceX: 1, faceY: 0, speed: GLOBAL_SPEED, radius: props.r, state: 'wander', inBushId: -1,
+            exp: 0 // ★ 给AI也加上经验值属性 ★
         });
     }
 
@@ -289,6 +270,23 @@
         refreshProgressUI();
     }
 
+    // ★ 给 AI 的升级函数 ★
+    function aiAddProgress(ai, val) {
+        if(ai.type === 5) return;
+        ai.exp += val;
+        let need1 = getNeedExp(1); let need2 = getNeedExp(2); let need3 = getNeedExp(3); let need4 = getNeedExp(4);
+        
+        let oldType = ai.type;
+        if(ai.exp >= need1 && ai.type < TYPE.FOX) { ai.exp -= need1; ai.type = TYPE.FOX; }
+        else if(ai.exp >= need1+need2 && ai.type < TYPE.WOLF) { ai.exp -= (need1+need2); ai.type = TYPE.WOLF; }
+        else if(ai.exp >= need1+need2+need3 && ai.type < TYPE.CROC) { ai.exp -= (need1+need2+need3); ai.type = TYPE.CROC; }
+        else if(ai.exp >= need1+need2+need3+need4 && ai.type < TYPE.DINO) { ai.exp = 99999; ai.type = TYPE.DINO; }
+        
+        if(ai.type !== oldType) {
+            ai.radius = getEntityProps(ai.type).r; // 进化后体型变大
+        }
+    }
+
     function update() {
         if(!gameActive) return;
 
@@ -319,6 +317,7 @@
             }
         }
 
+        // 玩家吃豆子
         for (let i = foods.length - 1; i >= 0; i--) {
             if (circleIntersect(player, {x: foods[i].x, y: foods[i].y, radius: 5})) {
                 let val = foods[i].val; flyingExp.push({ x: foods[i].x, y: foods[i].y, val: val });
@@ -339,13 +338,11 @@
             if (eaten) { runes.splice(i, 1); setTimeout(()=> spawnDynamicRune(), 5000); }
         }
 
-        // ★ 核心大乱斗逻辑 (AI 互吃) ★
-        let nemesisObj = null; // 用于雷达追踪
+        let nemesisObj = null; 
 
         for (let i = aiList.length - 1; i >= 0; i--) {
             let ai = aiList[i]; 
-            
-            if (ai.id === nemesisId) nemesisObj = ai; // 找到仇人对象
+            if (ai.id === nemesisId) nemesisObj = ai; 
 
             ai.inBushId = -1;
             for (let b of bushes) { if (Math.hypot(ai.x - b.x, ai.y - b.y) < b.r) { ai.inBushId = b.id; break; } }
@@ -354,7 +351,6 @@
             let canBeEatenByAI = (player.type < ai.type && player.invincibleTimer <= 0);
             let canSeePlayer = (player.inBushId === -1 || player.inBushId === ai.inBushId);
 
-            // 1. 优先对玩家的反应
             let targetSet = false;
             if (canSeePlayer && distToPlayer < (player.radius + ai.radius + 300)) {
                 if (player.type > ai.type) { 
@@ -366,19 +362,16 @@
                 }
             }
 
-            // 2. 如果没对玩家反应，AI 之间互相索敌 (大乱斗精髓)
             if (!targetSet) {
                 for (let j = 0; j < aiList.length; j++) {
-                    if (i === j) continue;
-                    let otherAI = aiList[j];
+                    if (i === j) continue; let otherAI = aiList[j];
                     let distToOther = Math.hypot(otherAI.x - ai.x, otherAI.y - ai.y);
                     let canSeeOther = (otherAI.inBushId === -1 || otherAI.inBushId === ai.inBushId);
-                    
                     if (canSeeOther && distToOther < 400) {
-                        if (ai.type > otherAI.type) { // 追杀弱者
+                        if (ai.type > otherAI.type) { 
                             ai.state = 'chase'; let dirX = otherAI.x - ai.x; let dirY = otherAI.y - ai.y; let l = Math.hypot(dirX, dirY);
                             ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed; targetSet = true; break;
-                        } else if (ai.type < otherAI.type) { // 逃避强者
+                        } else if (ai.type < otherAI.type) { 
                             ai.state = 'flee'; let dirX = ai.x - otherAI.x; let dirY = ai.y - otherAI.y; let l = Math.hypot(dirX, dirY);
                             ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed; targetSet = true; break;
                         }
@@ -386,7 +379,6 @@
                 }
             }
 
-            // 3. 闲逛
             if (!targetSet) {
                 if(Math.random()<0.02 || ai.state !== 'wander') { 
                     ai.state = 'wander'; let angle = Math.random() * Math.PI * 2; 
@@ -398,7 +390,14 @@
             if (!isColliding(ai.x + ai.vx, ai.y, ai.radius)) ai.x += ai.vx; else ai.vx *= -1;
             if (!isColliding(ai.x, ai.y + ai.vy, ai.radius)) ai.y += ai.vy; else ai.vy *= -1;
 
-            // 碰撞吞噬结算
+            // ★ AI 吃地上的豆子 ★
+            for (let f = foods.length - 1; f >= 0; f--) {
+                if (circleIntersect(ai, {x: foods[f].x, y: foods[f].y, radius: 5})) {
+                    aiAddProgress(ai, foods[f].val); // AI 加经验！有可能进化！
+                    foods.splice(f, 1); foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 1 });
+                }
+            }
+
             if (circleIntersect(player, ai)) {
                 if (player.type > ai.type) { 
                     if(ai.id === nemesisId) { showKillText(player.x, player.y, "复仇成功！", "#e74c3c", true); nemesisId = null; } 
@@ -411,49 +410,22 @@
                     document.getElementById('death-modal-overlay').style.display = 'flex';
                 }
             } else {
-                // AI 吃 AI
                 for (let j = aiList.length - 1; j >= 0; j--) {
-                    if (i === j || !aiList[j]) continue;
-                    let otherAI = aiList[j];
-                    if (circleIntersect(ai, otherAI)) {
-                        if (ai.type > otherAI.type) {
-                            dropLoot(otherAI.x, otherAI.y, otherAI.type); // 爆装
-                            // 如果玩家在附近，提示有命案发生
-                            if (Math.hypot(player.x - otherAI.x, player.y - otherAI.y) < 1000) {
-                                showKillText(otherAI.x, otherAI.y, "大爆装!", "#f1c40f", false);
-                            }
-                            if (otherAI.id === nemesisId) nemesisId = null; // 仇人被别人杀了，遗憾
-                            aiList.splice(j, 1); setTimeout(()=> spawnAI(TYPE.CHICKEN), 5000);
-                            if (j < i) i--; // 调整索引
-                        }
+                    if (i === j || !aiList[j]) continue; let otherAI = aiList[j];
+                    if (circleIntersect(ai, otherAI) && ai.type > otherAI.type) {
+                        dropLoot(otherAI.x, otherAI.y, otherAI.type); aiAddProgress(ai, getEntityValue(otherAI.type));
+                        if (Math.hypot(player.x - otherAI.x, player.y - otherAI.y) < 1000) { showKillText(otherAI.x, otherAI.y, "大爆装!", "#f1c40f", false); }
+                        if (otherAI.id === nemesisId) nemesisId = null; 
+                        aiList.splice(j, 1); setTimeout(()=> spawnAI(TYPE.CHICKEN), 5000);
+                        if (j < i) i--; 
                     }
                 }
             }
         }
 
-        // ★ 核心雷达更新：计算边缘箭头位置 ★
-        const radar = document.getElementById('radar-arrow');
-        if (nemesisId !== null && nemesisObj && player.type >= nemesisObj.type) {
-            radar.style.display = 'block';
-            let dx = nemesisObj.x - player.x; let dy = nemesisObj.y - player.y;
-            let angle = Math.atan2(dy, dx);
-            // 将角度转换为屏幕边缘的CSS定位
-            let cx = window.innerWidth / 2; let cy = window.innerHeight / 2;
-            let radiusUi = Math.min(cx, cy) - 50; // 离边缘留50px空隙
-            let arrowX = cx + Math.cos(angle) * radiusUi;
-            let arrowY = cy + Math.sin(angle) * radiusUi;
-            // 因为箭头本身指向上，需要加上90度(PI/2)修正CSS旋转
-            radar.style.left = (arrowX - 15) + 'px'; // 减去箭头一半宽度
-            radar.style.top = (arrowY - 30) + 'px';  // 减去箭头高度
-            radar.style.transform = `rotate(${angle + Math.PI/2}rad)`;
-        } else {
-            radar.style.display = 'none';
-        }
-
         let targetX = camera.x + canvas.width / 2; let targetY = camera.y + 40; 
         for (let i = flyingExp.length - 1; i >= 0; i--) {
-            let f = flyingExp[i];
-            let dx = targetX - f.x; let dy = targetY - f.y; let dist = Math.hypot(dx, dy);
+            let f = flyingExp[i]; let dx = targetX - f.x; let dy = targetY - f.y; let dist = Math.hypot(dx, dy);
             if (dist < 40) { addProgress(f.val); flyingExp.splice(i, 1); } 
             else { let flySpeed = Math.max(15, dist * 0.15); f.x += (dx / dist) * flySpeed; f.y += (dy / dist) * flySpeed; }
         }
@@ -549,13 +521,6 @@
             ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(-15, 5, 3, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(15, 5, 3, 0, Math.PI*2); ctx.fill();
         }
         ctx.restore();
-
-        if (isNemesis) {
-            ctx.save(); ctx.translate(x, y);
-            ctx.fillStyle = "#e74c3c"; ctx.font = "bold 24px 'Segoe UI'"; ctx.textAlign = "center"; ctx.shadowColor = "white"; ctx.shadowBlur = 5;
-            ctx.fillText("🎯 仇人", 0, - (r + 15 + Math.sin(Date.now()/200)*10));
-            ctx.restore();
-        }
     }
 
     function draw() {
@@ -563,13 +528,9 @@
 
         ctx.fillStyle = "#d8e3d6"; ctx.fillRect(camera.x, camera.y, MAP_SIZE, MAP_SIZE); 
         
-        // ★ 绘制厚重边缘墙壁 ★
         ctx.fillStyle = "#57606f"; 
-        ctx.fillRect(0, 0, MAP_SIZE, BOUNDARY_THICKNESS); // 上
-        ctx.fillRect(0, MAP_SIZE - BOUNDARY_THICKNESS, MAP_SIZE, BOUNDARY_THICKNESS); // 下
-        ctx.fillRect(0, 0, BOUNDARY_THICKNESS, MAP_SIZE); // 左
-        ctx.fillRect(MAP_SIZE - BOUNDARY_THICKNESS, 0, BOUNDARY_THICKNESS, MAP_SIZE); // 右
-        // 墙壁条纹装饰
+        ctx.fillRect(0, 0, MAP_SIZE, BOUNDARY_THICKNESS); ctx.fillRect(0, MAP_SIZE - BOUNDARY_THICKNESS, MAP_SIZE, BOUNDARY_THICKNESS); 
+        ctx.fillRect(0, 0, BOUNDARY_THICKNESS, MAP_SIZE); ctx.fillRect(MAP_SIZE - BOUNDARY_THICKNESS, 0, BOUNDARY_THICKNESS, MAP_SIZE); 
         ctx.fillStyle = "#2f3542";
         for(let i=0; i<MAP_SIZE; i+=80) {
             ctx.fillRect(i, 0, 10, BOUNDARY_THICKNESS); ctx.fillRect(i, MAP_SIZE - BOUNDARY_THICKNESS, 10, BOUNDARY_THICKNESS);
@@ -597,9 +558,7 @@
 
             ctx.fillStyle = "#fff"; ctx.font = "bold 22px 'Segoe UI'"; ctx.shadowColor = color; ctx.shadowBlur = 10;
             ctx.fillText(r.emoji, 0, 2); ctx.shadowBlur = 0;
-
-            ctx.font = "bold 12px 'Segoe UI'"; ctx.fillStyle = "rgba(255,255,255,0.9)";
-            ctx.fillText(r.name, 0, 35);
+            ctx.font = "bold 12px 'Segoe UI'"; ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.fillText(r.name, 0, 35);
             ctx.restore();
         }
 
@@ -608,7 +567,9 @@
             ctx.beginPath(); ctx.arc(b.x-b.r/2, b.y+b.r/3, b.r*0.8, 0, Math.PI*2); ctx.fill();
         } 
 
+        let nemesisObj = null;
         for (let ai of aiList) {
+            if(ai.id === nemesisId) nemesisObj = ai;
             let visible = true;
             if (ai.inBushId !== -1 && player.inBushId !== ai.inBushId) visible = false;
             if (visible) drawCharacter(ctx, ai.x, ai.y, ai.type, ai.faceX, ai.faceY, true, ai.id === nemesisId);
@@ -624,7 +585,6 @@
                 ctx.save(); ctx.translate(player.x, player.y);
                 ctx.beginPath(); ctx.arc(0, 0, player.radius + 10 + Math.sin(Date.now()/100)*5, 0, Math.PI*2);
                 ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"; ctx.lineWidth = 4; ctx.stroke(); 
-                
                 ctx.fillStyle = "#e74c3c"; ctx.font = "bold 16px 'Segoe UI'"; ctx.shadowColor = "white"; ctx.shadowBlur = 4; ctx.textAlign = "center";
                 ctx.fillText(`🛡️ 保护期: ${Math.ceil(player.invincibleTimer/60)}s`, 0, -player.radius - 20);
                 ctx.restore();
@@ -637,6 +597,43 @@
                 ctx.fillStyle = "#333"; ctx.font = "bold 20px 'Segoe UI'"; ctx.shadowColor = "white"; ctx.shadowBlur = 3;
                 ctx.fillText(Math.ceil(player.tempTimer/60) + "s", player.x, player.y - player.radius - offset); ctx.shadowBlur = 0;
             }
+        }
+
+        // ★ 重绘精美的高清矢量追踪箭头 ★
+        if (nemesisId !== null && nemesisObj && player.type > nemesisObj.type) { // ★条件：必须大于仇人等级才提示★
+            let dx = nemesisObj.x - player.x; let dy = nemesisObj.y - player.y;
+            let angle = Math.atan2(dy, dx);
+            let cx = camera.x + canvas.width / 2; let cy = camera.y + canvas.height / 2;
+            let radiusUi = Math.min(canvas.width/2, canvas.height/2) - 60; // 屏幕边缘
+            let arrowX = cx + Math.cos(angle) * radiusUi;
+            let arrowY = cy + Math.sin(angle) * radiusUi;
+
+            ctx.save();
+            ctx.translate(arrowX, arrowY);
+            ctx.rotate(angle); // 箭头永远指向外面
+            
+            // 箭头抖动特效
+            let pulse = Math.sin(Date.now()/150) * 5;
+            ctx.translate(pulse, 0);
+
+            // 绘制科幻风高清箭头 (向右指)
+            ctx.fillStyle = "#e74c3c";
+            ctx.shadowColor = "rgba(231, 76, 60, 0.6)"; ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.moveTo(20, 0);   // 尖端
+            ctx.lineTo(-15, 15); // 下侧
+            ctx.lineTo(-10, 0);  // 凹陷内角
+            ctx.lineTo(-15, -15);// 上侧
+            ctx.closePath();
+            ctx.fill();
+
+            // 箭头上的文字 "仇人" (需要正过来显示)
+            ctx.rotate(-angle); // 把文字转正
+            ctx.fillStyle = "#fff"; ctx.font = "bold 14px 'Segoe UI'"; ctx.textAlign = "center";
+            ctx.shadowBlur = 2; ctx.shadowColor = "#000";
+            ctx.fillText("仇人", 0, 30); // 放在箭头下方一点
+            
+            ctx.restore();
         }
 
         for(let f of flyingExp) {
