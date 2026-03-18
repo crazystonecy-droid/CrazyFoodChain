@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>疯狂食物链 - 巨鲸降临 V20</title>
+    <title>疯狂食物链 - 仙人掌迷宫 V21</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
@@ -18,12 +18,12 @@
             position: absolute; top: env(safe-area-inset-top, 20px); left: 50%; transform: translateX(-50%);
             width: 90vw; max-width: 400px; text-align: center; pointer-events: none;
         }
-        #status-text { color: #333; font-weight: 900; font-size: 1.1rem; text-shadow: 0 2px 0px rgba(255,255,255,0.8); margin-bottom: 8px; }
+        #status-text { color: #333; font-weight: 900; font-size: 1.1rem; text-shadow: 0 2px 0px rgba(255,255,255,0.8); margin-bottom: 8px; transition: color 0.3s; }
         #progress-bg {
             width: 100%; height: 24px; background: rgba(0,0,0,0.2);
             border-radius: 12px; border: 3px solid #fff; overflow: hidden; position: relative;
         }
-        #progress-fill { width: 0%; height: 100%; background: #f1c40f; transition: width 0.1s ease-out; }
+        #progress-fill { width: 0%; height: 100%; background: #f1c40f; transition: width 0.1s ease-out, background 0.3s; }
         #progress-text {
             position: absolute; width: 100%; height: 100%; top: 0; left: 0;
             display: flex; justify-content: center; align-items: center;
@@ -45,7 +45,7 @@
         #dash-btn {
             position: absolute; bottom: max(60px, env(safe-area-inset-bottom, 60px)); right: max(30px, env(safe-area-inset-right, 30px));
             width: 80px; height: 80px; background: #f1c40f;
-            border-radius: 50%; border: 4px solid #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border-radius: 50%; border: 4px solid #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: background 0.3s;
             pointer-events: auto; display: flex; justify-content: center; align-items: center; font-size: 26px; color: white; font-weight: bold;
             cursor: pointer;
         }
@@ -110,18 +110,16 @@
     function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
     window.addEventListener('resize', resize); resize();
 
-    // ★ 新增类型 6: 巨鲸 (WHALE) ★
     const TYPE = { CHICKEN: 1, FOX: 2, WOLF: 3, CROC: 4, DINO: 5, WHALE: 6 };
     const GLOBAL_SPEED = 4.5; const MAP_SIZE = 4000; const INVINCIBLE_TIME = 15 * 60; const MAX_RUNES = 12;
     const BOUNDARY_THICKNESS = 40; 
 
     let camera = { x: 0, y: 0 }; 
     let player = { type: TYPE.CHICKEN, exp: 0 }; 
-    let bushes = [], crates = [], stones = [], spikeStones = [], foods = [], runes = [], aiList = [];
+    let bushes = [], cacti = [], foods = [], runes = [], aiList = [];
     let floatingTexts = []; let flyingExp = []; 
     let gameActive = true; let aiIdCounter = 1; let nemesisId = null; 
 
-    // ★ 新增巨鲸的主题色 ★
     const COLORS = {
         CHICKEN: "#f1c40f", 
         FOX: "#eb7c25", FOX_OUT: "#b95311",
@@ -137,17 +135,15 @@
         if(type === 5) return 800;  if(type === 6) return 2500;  return 0;
     }
 
-    // ★ 核心数值修改：恐龙变巨鲸需要鳄鱼变恐龙的10倍积分(40000) ★
     function getNeedExp(tier) {
         if(tier === 1) return 150;    // 鸡变狐狸
         if(tier === 2) return 400;    // 狐狸变狼
         if(tier === 3) return 1000;   // 狼变鳄鱼
         if(tier === 4) return 4000;   // 鳄鱼变恐龙
-        if(tier === 5) return 40000;  // 恐龙变巨鲸 (10倍鳄鱼升恐龙)
+        if(tier === 5) return 40000;  // 恐龙变巨鲸 (深渊巨坑)
         return 999999;
     }
 
-    // ★ 新增巨鲸的各项属性（体积更大） ★
     function getEntityProps(type) {
         if(type === 1) return { r: 16, name: "小鸡", emoji: "🐥", color: COLORS.CHICKEN }; 
         if(type === 2) return { r: 24, name: "赤狐", emoji: "🦊", color: COLORS.FOX };
@@ -175,31 +171,24 @@
 
     function circleIntersect(c1, c2) { return Math.hypot(c1.x - c2.x, c1.y - c2.y) < (c1.radius + (c2.radius || 10)); }
 
-    // ★ 重写符文刷新机制：引入权重系统，越高级的符文爆率越低 ★
     function spawnDynamicRune() {
         if (runes.length >= MAX_RUNES) return;
         let maxTier = player.type || 1; 
         for(let ai of aiList) { if(ai.type > maxTier) maxTier = ai.type; }
 
         let pool = [];
-        // 权重分配：数值越大出现概率越高
         pool.push({ type: TYPE.FOX, weight: 100 }); 
         if (maxTier >= TYPE.FOX) pool.push({ type: TYPE.WOLF, weight: 35 });
         if (maxTier >= TYPE.WOLF) pool.push({ type: TYPE.CROC, weight: 12 });
-        if (maxTier >= TYPE.CROC) pool.push({ type: TYPE.DINO, weight: 3 });  // 恐龙符文极少
-        if (maxTier >= TYPE.DINO) pool.push({ type: TYPE.WHALE, weight: 1 }); // 巨鲸符文仅做超级彩蛋
+        if (maxTier >= TYPE.CROC) pool.push({ type: TYPE.DINO, weight: 3 });  
+        if (maxTier >= TYPE.DINO) pool.push({ type: TYPE.WHALE, weight: 1 }); 
 
-        // 根据权重随机抽取
         let totalWeight = pool.reduce((sum, item) => sum + item.weight, 0);
         let randomNum = Math.random() * totalWeight;
-        let chosenType = TYPE.FOX;
-        let currentWeight = 0;
+        let chosenType = TYPE.FOX; let currentWeight = 0;
         for (let item of pool) {
             currentWeight += item.weight;
-            if (randomNum <= currentWeight) {
-                chosenType = item.type;
-                break;
-            }
+            if (randomNum <= currentWeight) { chosenType = item.type; break; }
         }
 
         let pos = getSafeSpawn(20);
@@ -226,28 +215,41 @@
     }
 
     function initEnvironment() {
-        bushes = []; foods = []; runes = []; aiList = []; nemesisId = null; flyingExp = [];
+        bushes = []; cacti = []; foods = []; runes = []; aiList = []; nemesisId = null; flyingExp = [];
 
+        // 生成草丛
         for(let i=0; i<45; i++) bushes.push({ id: i, x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, r: 80+Math.random()*80 });
+        
+        // ★ 生成成排的仙人掌 (构成狭窄通道) ★
+        for(let i=0; i<35; i++) {
+            let cx = 300 + Math.random()*(MAP_SIZE-600); let cy = 300 + Math.random()*(MAP_SIZE-600);
+            let num = 3 + Math.floor(Math.random()*4); // 每排3到6个
+            let angle = Math.random() * Math.PI * 2;
+            let spacing = 95; // 间距。仙人掌r=20，因此缝隙宽度为 55px (狐狸48可通过，狼60会被扎)
+            for(let j=0; j<num; j++) {
+                cacti.push({ x: cx + Math.cos(angle) * j * spacing, y: cy + Math.sin(angle) * j * spacing, radius: 20 });
+            }
+        }
+
         for(let i=0; i<150; i++) foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 1 }); 
 
         for(let i=0; i<80; i++) spawnAI(TYPE.CHICKEN);
         for(let i=0; i<15; i++) spawnAI(TYPE.FOX);
         for(let i=0; i<5; i++) spawnAI(TYPE.WOLF);
 
+        // ★ 开局直接生成2只巨鲸让你过目！ ★
+        spawnAI(TYPE.WHALE);
+        spawnAI(TYPE.WHALE);
+
         for(let i=0; i<MAX_RUNES; i++) spawnDynamicRune();
     }
 
     function killPlayer(reason, fromNemesisId) {
-        gameActive = false; nemesisId = fromNemesisId; 
-        dropLoot(player.x, player.y, player.type); 
-
+        gameActive = false; nemesisId = fromNemesisId; dropLoot(player.x, player.y, player.type); 
         document.getElementById('death-title').innerText = reason;
         if(fromNemesisId !== null) { document.getElementById('death-desc').innerText = "记住它的长相，复活找它报仇！"; } 
         else { document.getElementById('death-desc').innerText = "血本无归！满地都是你的爆装！"; }
-
         document.getElementById('death-modal-overlay').style.display = 'flex';
-
         joyActive = false; joyVector = {x: 0, y: 0}; joyKnob.style.transform = `translate(-50%, -50%)`;
     }
 
@@ -346,7 +348,6 @@
         refreshProgressUI(); 
     }
 
-    // ★ 拓展了AI的最大阶段限制 ★
     function aiAddProgress(ai, val) {
         if(ai.type === TYPE.WHALE) return;
         ai.exp += val;
@@ -386,6 +387,31 @@
 
         player.inBushId = -1;
         for (let b of bushes) { if (Math.hypot(player.x - b.x, player.y - b.y) < b.r) { player.inBushId = b.id; break; } }
+
+        // ★ 仙人掌碰撞检测 (玩家) ★
+        for (let c of cacti) {
+            if (circleIntersect(player, c)) {
+                // 只有大于等于 灰狼(TYPE.WOLF) 才会受到仙人掌伤害，小鸡狐狸免疫
+                if (player.type >= TYPE.WOLF && !player.isTemp && player.invincibleTimer <= 0) {
+                    player.exp -= 4; // 每帧掉血，强行通过会大掉血
+                    if (Math.random() < 0.1) showKillText(player.x + (Math.random()-0.5)*30, player.y, "-EXP", "#e74c3c", false);
+
+                    if (player.exp < 0) { // 掉级机制
+                        player.type--; 
+                        let props = getEntityProps(player.type);
+                        player.radius = props.r;
+                        player.exp = getNeedExp(player.type) * 0.9; // 退级后保留90%管血
+                        updateUI(`🌵 被仙人掌扎破体格！退化为 ${props.name}！`, "#e74c3c");
+                        document.getElementById('progress-fill').style.background = props.color;
+                        document.getElementById('dash-btn').style.background = props.color;
+                    }
+                    refreshProgressUI();
+                }
+                // 所有碰到的动物都会受到轻微的阻力排斥 (减速)
+                let dx = player.x - c.x, dy = player.y - c.y; let d = Math.hypot(dx, dy);
+                if (d > 0) { player.x += (dx/d)*2.5; player.y += (dy/d)*2.5; }
+            }
+        }
 
         if (player.isTemp) {
             player.tempTimer--;
@@ -459,6 +485,18 @@
                 }
             }
 
+            // ★ 仙人掌碰撞检测 (AI) ★
+            for (let c of cacti) {
+                if (circleIntersect(ai, c)) {
+                    if (ai.type >= TYPE.WOLF) {
+                        ai.exp -= 4;
+                        if(ai.exp < 0) { ai.type--; ai.radius = getEntityProps(ai.type).r; ai.exp = getNeedExp(ai.type)*0.9; }
+                    }
+                    let dx = ai.x - c.x, dy = ai.y - c.y; let d = Math.hypot(dx, dy);
+                    if (d > 0) { ai.x += (dx/d)*2.5; ai.y += (dy/d)*2.5; targetSet = true; ai.vx = (dx/d)*ai.speed; ai.vy = (dy/d)*ai.speed; } // AI被扎后反弹
+                }
+            }
+
             if (!targetSet) {
                 if(Math.random()<0.02 || ai.state !== 'wander') { 
                     ai.state = 'wander'; let angle = Math.random() * Math.PI * 2; 
@@ -523,7 +561,6 @@
         camera.x += (targetCamX - camera.x) * 0.1; camera.y += (targetCamY - camera.y) * 0.1;
     }
 
-    // ★ 拓展了玩家的进化阶段判定 ★
     function addProgress(val) {
         if (player.type === TYPE.WHALE && !player.isTemp) return; 
         player.exp += val;
@@ -538,7 +575,6 @@
         refreshProgressUI();
     }
 
-    // ★ 更新进度条视觉计算 ★
     function refreshProgressUI() {
         if (player.type === TYPE.WHALE && !player.isTemp) {
             document.getElementById('progress-fill').style.width = "100%"; 
@@ -616,27 +652,16 @@
             ctx.beginPath(); ctx.moveTo(0, r-15); ctx.lineTo(-4, r-25); ctx.lineTo(4, r-25); ctx.fill(); ctx.stroke();
             ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(-15, 5, 3, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(15, 5, 3, 0, Math.PI*2); ctx.fill();
         }
-        // ★ 新增巨鲸的绘制外观 ★
         else if (type === 6) { 
             ctx.fillStyle = COLORS.WHALE; ctx.strokeStyle = COLORS.WHALE_OUT; ctx.lineWidth = 5;
-            
-            // 庞大的椭圆身躯
             ctx.beginPath(); ctx.ellipse(0, 0, r, r*0.7, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            
-            // 巨大的尾巴 (在后方/底部)
             ctx.beginPath(); ctx.moveTo(0, r*0.6); ctx.lineTo(-r*0.6, r*1.1); ctx.lineTo(r*0.6, r*1.1); ctx.closePath(); ctx.fill(); ctx.stroke();
-            
-            // 两侧胸鳍
             ctx.beginPath(); ctx.ellipse(-r*0.8, 0, r*0.4, r*0.15, Math.PI/4, 0, Math.PI*2); ctx.fill(); ctx.stroke();
             ctx.beginPath(); ctx.ellipse(r*0.8, 0, r*0.4, r*0.15, -Math.PI/4, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            
-            // 眼睛
             ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(-r*0.4, -r*0.3, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
             ctx.beginPath(); ctx.arc(r*0.4, -r*0.3, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
             ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(-r*0.4, -r*0.3, 4, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(r*0.4, -r*0.3, 4, 0, Math.PI*2); ctx.fill();
-            
-            // 头顶喷水特效
             ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 4; ctx.lineCap = "round";
             ctx.beginPath(); ctx.moveTo(0, -r*0.6); ctx.lineTo(0, -r*0.9); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(-5, -r*0.65); ctx.lineTo(-15, -r*0.85); ctx.stroke();
@@ -675,15 +700,12 @@
             let color = getEntityProps(r.rType).color;
             ctx.save(); ctx.translate(r.x, r.y);
             let floatY = Math.sin((Date.now() - r.createTime) / 200) * 5; ctx.translate(0, floatY);
-
             ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 150) * 0.2;
             ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1.0;
-
             ctx.fillStyle = "#34495e"; ctx.strokeStyle = color; ctx.lineWidth = 3;
             ctx.beginPath();
             for (let i = 0; i < 6; i++) { let angle = (Math.PI / 3) * i + Math.PI / 6; ctx.lineTo(Math.cos(angle) * 22, Math.sin(angle) * 22); }
             ctx.closePath(); ctx.fill(); ctx.stroke();
-
             ctx.fillStyle = "#fff"; ctx.font = "bold 22px 'Segoe UI'"; ctx.shadowColor = color; ctx.shadowBlur = 10;
             ctx.fillText(r.emoji, 0, 2); ctx.shadowBlur = 0;
             ctx.font = "bold 12px 'Segoe UI'"; ctx.fillStyle = "rgba(255,255,255,0.9)";
@@ -695,6 +717,22 @@
             ctx.fillStyle = "rgba(170, 190, 160, 0.4)"; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(b.x-b.r/2, b.y+b.r/3, b.r*0.8, 0, Math.PI*2); ctx.fill();
         } 
+
+        // ★ 绘制仙人掌 ★
+        for (let c of cacti) {
+            ctx.save(); ctx.translate(c.x, c.y);
+            // 仙人掌尖刺
+            ctx.fillStyle = "#27ae60"; ctx.beginPath();
+            for(let i=0; i<Math.PI*2; i+=Math.PI/6) {
+                ctx.lineTo(Math.cos(i)*c.radius, Math.sin(i)*c.radius);
+                ctx.lineTo(Math.cos(i+Math.PI/12)*(c.radius+6), Math.sin(i+Math.PI/12)*(c.radius+6));
+            }
+            ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = "#2ecc71"; ctx.lineWidth = 2; ctx.stroke();
+            // 仙人掌本体质感
+            ctx.fillStyle = "#2ecc71"; ctx.beginPath(); ctx.arc(-c.radius/3, -c.radius/3, c.radius/4, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        }
 
         for (let ai of aiList) {
             let visible = true;
