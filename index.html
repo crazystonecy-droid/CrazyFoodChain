@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>疯狂食物链 - 天梯大乱斗 V17</title>
+    <title>疯狂食物链 - 完美控制 V18</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
@@ -11,769 +11,13 @@
             touch-action: none; overscroll-behavior: none; user-select: none; font-family: 'Segoe UI', sans-serif;
         }
         #gameCanvas { display: block; width: 100%; height: 100%; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; overflow: hidden; }
         
-        /* 顶部经验条 */
-        #top-bar {
-            position: absolute; top: env(safe-area-inset-top, 20px); left: 50%; transform: translateX(-50%);
-            width: 90vw; max-width: 400px; text-align: center;
-        }
-        #status-text { color: #333; font-weight: 900; font-size: 1.1rem; text-shadow: 0 2px 0px rgba(255,255,255,0.8); margin-bottom: 8px; }
-        #progress-bg {
-            width: 100%; height: 24px; background: rgba(0,0,0,0.2);
-            border-radius: 12px; border: 3px solid #fff; overflow: hidden; position: relative;
-        }
-        #progress-fill { width: 0%; height: 100%; background: #f1c40f; transition: width 0.1s ease-out; }
-        #progress-text {
-            position: absolute; width: 100%; height: 100%; top: 0; left: 0;
-            display: flex; justify-content: center; align-items: center;
-            color: white; font-size: 14px; font-weight: 900; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-        }
-
-        /* ★ 左上角实时排行榜 ★ */
-        #leaderboard {
-            position: absolute; top: max(20px, env(safe-area-inset-top, 20px)); left: max(20px, env(safe-area-inset-left, 20px));
-            background: rgba(0, 0, 0, 0.4); border-radius: 10px; padding: 10px; backdrop-filter: blur(5px);
-            width: 160px; pointer-events: none; border: 2px solid rgba(255,255,255,0.2);
-        }
-        .lb-title { color: #f1c40f; font-size: 14px; font-weight: 900; text-align: center; margin-bottom: 8px; text-shadow: 1px 1px 2px #000; }
-        .lb-row { display: flex; align-items: center; margin-bottom: 5px; font-size: 12px; font-weight: bold; color: white; text-shadow: 1px 1px 2px #000; }
-        .lb-emoji { width: 20px; text-align: center; font-size: 14px; margin-right: 5px; }
-        .lb-name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .lb-score { color: #f39c12; margin-left: 5px; }
-        .lb-me { color: #2ecc71; font-weight: 900; background: rgba(255,255,255,0.2); border-radius: 4px; padding: 2px; }
-
-        /* 操作UI */
-        #joystick-zone {
-            position: absolute; bottom: max(40px, env(safe-area-inset-bottom, 40px)); left: max(30px, env(safe-area-inset-left, 30px));
-            width: 130px; height: 130px; background: rgba(255, 255, 255, 0.3);
-            border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); pointer-events: auto; backdrop-filter: blur(4px);
-        }
-        #joystick-knob {
-            position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
-            background: rgba(255, 255, 255, 0.9); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        }
-
-        #dash-btn {
-            position: absolute; bottom: max(60px, env(safe-area-inset-bottom, 60px)); right: max(30px, env(safe-area-inset-right, 30px));
-            width: 80px; height: 80px; background: #f1c40f;
-            border-radius: 50%; border: 4px solid #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            pointer-events: auto; display: flex; justify-content: center; align-items: center; font-size: 26px; color: white; font-weight: bold;
-        }
-        #dash-btn:active { transform: scale(0.95); }
-        #dash-cd {
-            position: absolute; width: 100%; height: 100%; background: rgba(0,0,0,0.6); border-radius: 50%;
-            display: none; justify-content: center; align-items: center; font-size: 24px; color: #fff;
-        }
-        
-        #death-modal-overlay {
-            position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0, 0, 0, 0.6);
-            display: none; justify-content: center; align-items: center; pointer-events: auto; z-index: 999; backdrop-filter: blur(5px);
-        }
-        .modal-box {
-            background: #fff; width: 80vw; max-width: 350px; border-radius: 20px; padding: 30px 20px; text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 4px solid #34495e;
-        }
-        .modal-title { color: #e74c3c; font-size: 32px; font-weight: 900; margin-top: 0; margin-bottom: 10px; }
-        .modal-desc { color: #7f8c8d; font-size: 16px; margin-bottom: 30px; font-weight: bold; }
-        .btn {
-            display: block; width: 100%; padding: 16px 0; margin-bottom: 15px; font-size: 20px; font-weight: 900; border: none; border-radius: 30px; box-sizing: border-box; cursor: pointer; color: white;
-        }
-        .btn-revive { background: #e74c3c; border: 2px solid #c0392b; }
-        .btn-leave { background: #95a5a6; border: 2px solid #7f8c8d; margin-bottom: 0; }
-
-        #radar-arrow {
-            position: absolute; width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-bottom: 30px solid #ff3838; 
-            transform-origin: 15px 40px; display: none; z-index: 5; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
-            animation: pulseRadar 0.5s infinite alternate;
-        }
-        @keyframes pulseRadar { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.2); opacity: 1; } }
-
-    </style>
-</head>
-<body>
-    <canvas id="gameCanvas"></canvas>
-    
-    <div id="ui-layer">
-        <div id="leaderboard">
-            <div class="lb-title">⚡ 食物链天梯榜</div>
-            <div id="lb-content"></div>
-        </div>
-
-        <div id="top-bar">
-            <div id="status-text">小鸡 - 努力吃豆子进化！</div>
-            <div id="progress-bg"><div id="progress-fill"></div><div id="progress-text">0 / 150</div></div>
-        </div>
-        <div id="joystick-zone"><div id="joystick-knob"></div></div>
-        <div id="dash-btn">闪<div id="dash-cd"></div></div>
-        <div id="radar-arrow"></div>
-    </div>
-    
-    <div id="death-modal-overlay">
-        <div class="modal-box">
-            <h1 class="modal-title" id="death-title">你被吃掉了！</h1>
-            <p class="modal-desc" id="death-desc">你的豆子全爆了！</p>
-            <button class="btn btn-revive" onclick="revivePlayer()">🔥 立即复仇 (带保护伞)</button>
-            <button class="btn btn-leave" onclick="fullResetGame()">🚪 离开房间 (重新匹配)</button>
-        </div>
-    </div>
-
-<script>
-    document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
-
-    const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
-    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-    window.addEventListener('resize', resize); resize();
-
-    const TYPE = { CHICKEN: 1, FOX: 2, WOLF: 3, CROC: 4, DINO: 5 };
-    const GLOBAL_SPEED = 4.5; const MAP_SIZE = 4000; const INVINCIBLE_TIME = 15 * 60; const MAX_RUNES = 12;
-    const BOUNDARY_THICKNESS = 40; 
-
-    // AI 名字库，增加竞技氛围
-    const AI_NAMES = ["路人甲", "小透明", "疯狂的狗子", "王二狗", "键盘侠", "不吃香菜", "躺平的咸鱼", "秀儿", "专业送人头", "老阴比", "草丛之王", "打工魂", "干饭人", "龙傲天", "赵四", "神秘力量"];
-
-    let camera = { x: 0, y: 0 }; let player = {};
-    let bushes = [], crates = [], stones = [], spikeStones = [], foods = [], runes = [], aiList = [];
-    let floatingTexts = []; let flyingExp = []; 
-    let gameActive = true; let aiIdCounter = 1; let nemesisId = null; 
-
-    const COLORS = {
-        CHICKEN: "#f1c40f", 
-        FOX: "#eb7c25", FOX_OUT: "#b95311",
-        WOLF: "#878f9b", WOLF_OUT: "#5a626c",
-        CROC: "#6f9f59", CROC_OUT: "#466b35",
-        DINO: "#8d9964", DINO_OUT: "#5d673f" 
-    };
-
-    function getEntityValue(type) {
-        if(type === 1) return 50;   if(type === 2) return 100;  
-        if(type === 3) return 200;  if(type === 4) return 400;  if(type === 5) return 800;  return 0;
-    }
-    
-    function getNeedExp(tier) {
-        if(tier === 1) return 150;  if(tier === 2) return 400;  
-        if(tier === 3) return 1000; if(tier === 4) return 2000; return 99999;
-    }
-
-    function getEntityProps(type) {
-        if(type === 1) return { r: 16, name: "小鸡", emoji: "🐥", color: COLORS.CHICKEN }; 
-        if(type === 2) return { r: 24, name: "赤狐", emoji: "🦊", color: COLORS.FOX };
-        if(type === 3) return { r: 30, name: "灰狼", emoji: "🐺", color: COLORS.WOLF };
-        if(type === 4) return { r: 35, name: "巨鳄", emoji: "🐊", color: COLORS.CROC };
-        if(type === 5) return { r: 45, name: "三角龙", emoji: "🦖", color: COLORS.DINO };
-        return { r: 16, emoji: "🐥" };
-    }
-
-    // 防重叠生成点，兼顾地图边界和致命尖刺石
-    function getSafeSpawn(radius) {
-        let x, y, safe = false, attempts = 0;
-        let pad = BOUNDARY_THICKNESS + radius + 10;
-        while (!safe && attempts < 150) {
-            x = pad + Math.random() * (MAP_SIZE - pad * 2); y = pad + Math.random() * (MAP_SIZE - pad * 2);
-            safe = !isColliding(x, y, radius) && !isCollidingSpikes(x, y, radius); attempts++;
-        }
-        return { x: x, y: y };
-    }
-
-    function isColliding(x, y, r) {
-        if(x - r < BOUNDARY_THICKNESS || x + r > MAP_SIZE - BOUNDARY_THICKNESS || y - r < BOUNDARY_THICKNESS || y + r > MAP_SIZE - BOUNDARY_THICKNESS) return true;
-        for (let c of crates) {
-            let tx = x, ty = y;
-            if (x < c.x) tx = c.x; else if (x > c.x + c.w) tx = c.x + c.w;
-            if (y < c.y) ty = c.y; else if (y > c.y + c.h) ty = c.y + c.h;
-            if (Math.hypot(x - tx, y - ty) < r) return true;
-        }
-        for (let s of stones) { if (Math.hypot(x - s.x, y - s.y) < r + s.radius) return true; }
-        return false;
-    }
-    
-    // ★ 尖刺岩石单独检测 ★
-    function isCollidingSpikes(x, y, r) {
-        for (let s of spikeStones) { if (Math.hypot(x - s.x, y - s.y) < r + s.radius) return true; }
-        return false;
-    }
-    
-    function circleIntersect(c1, c2) { return Math.hypot(c1.x - c2.x, c1.y - c2.y) < (c1.radius + (c2.radius || 10)); }
-
-    function spawnDynamicRune() {
-        if (runes.length >= MAX_RUNES) return;
-        let maxTier = player.type; for(let ai of aiList) { if(ai.type > maxTier) maxTier = ai.type; }
-        let allowed = [TYPE.FOX];
-        if (maxTier >= TYPE.FOX) allowed.push(TYPE.WOLF);
-        if (maxTier >= TYPE.WOLF) allowed.push(TYPE.CROC);
-        if (maxTier >= TYPE.CROC) allowed.push(TYPE.DINO);
-        let chosenType = allowed[Math.floor(Math.random() * allowed.length)];
-        let pos = getSafeSpawn(20);
-        let emoji = chosenType===TYPE.FOX?'🦊':chosenType===TYPE.WOLF?'🐺':chosenType===TYPE.CROC?'🐊':'🦖';
-        let rName = chosenType===TYPE.FOX?'狐狸符文':chosenType===TYPE.WOLF?'狼王符文':chosenType===TYPE.CROC?'鳄鱼符文':'恐龙符文';
-        runes.push({ x: pos.x, y: pos.y, rType: chosenType, emoji: emoji, name: rName, createTime: Date.now() });
-    }
-
-    function dropLoot(x, y, tier) {
-        let totalValue = getEntityValue(tier); let count = Math.floor(totalValue / 5); 
-        for(let i=0; i<count; i++) {
-            if (foods.length > 800) break; // 提高上限适应拥挤地图
-            let offsetX = (Math.random() - 0.5) * tier * 50; let offsetY = (Math.random() - 0.5) * tier * 50;
-            foods.push({ x: x + offsetX, y: y + offsetY, val: 5 }); 
-        }
-    }
-
-    function spawnAI(type) {
-        let props = getEntityProps(type); let pos = getSafeSpawn(props.r);
-        let aiName = AI_NAMES[Math.floor(Math.random() * AI_NAMES.length)];
-        aiList.push({
-            id: aiIdCounter++, name: aiName, type: type, x: pos.x, y: pos.y, 
-            vx: 0, vy: 0, faceX: 1, faceY: 0, speed: GLOBAL_SPEED, radius: props.r, state: 'wander', inBushId: -1, exp: 0 
-        });
-    }
-
-    function initEnvironment() {
-        bushes = []; crates = []; stones = []; spikeStones = []; foods = []; runes = []; aiList = []; nemesisId = null; flyingExp = [];
-        
-        for(let i=0; i<30; i++) bushes.push({ id: i, x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, r: 80+Math.random()*60 });
-        for(let i=0; i<150; i++) foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 1 }); 
-        for(let i=0; i<30; i++) stones.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, radius: 30+Math.random()*30 });
-        
-        // ★ 生成 15 块致命尖刺石头 ★
-        for(let i=0; i<15; i++) spikeStones.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, radius: 35+Math.random()*20 });
-
-        // ★ 拥挤大乱斗：大量底层 AI + 少数高级 AI ★
-        for(let i=0; i<80; i++) spawnAI(TYPE.CHICKEN);
-        for(let i=0; i<15; i++) spawnAI(TYPE.FOX);
-        for(let i=0; i<5; i++) spawnAI(TYPE.WOLF);
-        
-        for(let i=0; i<MAX_RUNES; i++) spawnDynamicRune();
-    }
-
-    // ★ 更新天梯排行榜 ★
-    function updateLeaderboard() {
-        let allEntities = aiList.slice(); 
-        allEntities.push(player); 
-        
-        allEntities.sort((a, b) => {
-            if (b.type !== a.type) return b.type - a.type;
-            return b.exp - a.exp;
-        });
-
-        let lbContent = "";
-        let limit = Math.min(6, allEntities.length); 
-        for (let i = 0; i < limit; i++) {
-            let entity = allEntities[i];
-            let isMe = (entity.id === 0);
-            let rowClass = isMe ? "lb-row lb-me" : "lb-row";
-            let emoji = getEntityProps(entity.type).emoji;
-            let score = getEntityValue(entity.type) + Math.floor(entity.exp);
-            
-            lbContent += `<div class="${rowClass}">
-                            <div class="lb-emoji">${emoji}</div>
-                            <div class="lb-name">${i+1}. ${entity.name}</div>
-                            <div class="lb-score">${score}</div>
-                          </div>`;
-        }
-        document.getElementById('lb-content').innerHTML = lbContent;
-    }
-
-    function killPlayer(reason, fromNemesisId) {
-        gameActive = false; nemesisId = fromNemesisId; 
-        dropLoot(player.x, player.y, player.type); 
-        
-        document.getElementById('death-title').innerText = reason;
-        if(fromNemesisId !== null) { document.getElementById('death-desc').innerText = "记住它的长相，复活找它报仇！"; } 
-        else { document.getElementById('death-desc').innerText = "血本无归！满地都是你的爆装！"; }
-        
-        document.getElementById('death-modal-overlay').style.display = 'flex';
-        updateLeaderboard();
-    }
-
-    function fullResetGame() {
-        document.getElementById('death-modal-overlay').style.display = 'none'; initEnvironment(); let safePos = getSafeSpawn(16);
-        player = {
-            id: 0, name: "玩家_你", x: safePos.x, y: safePos.y, radius: 16, speed: GLOBAL_SPEED, type: TYPE.CHICKEN,
-            faceX: 1, faceY: 0, dashCooldown: 0, dashMaxCd: 180, flashEffects: [],
-            tempTimer: 0, tempMaxTime: 20 * 60, exp: 0, inBushId: -1, isTemp: false,
-            invincibleTimer: INVINCIBLE_TIME 
-        };
-        camera.x = player.x - canvas.width / 2; camera.y = player.y - canvas.height / 2;
-        gameActive = true; document.getElementById('progress-fill').style.background = COLORS.CHICKEN; document.getElementById('dash-btn').style.background = COLORS.CHICKEN;
-        updateUI("全新开局！努力吃豆子！", "#333"); refreshProgressUI(); updateLeaderboard();
-    }
-
-    function revivePlayer() {
-        document.getElementById('death-modal-overlay').style.display = 'none'; let safePos = getSafeSpawn(16);
-        player = {
-            id: 0, name: "玩家_你", x: safePos.x, y: safePos.y, radius: 16, speed: GLOBAL_SPEED, type: TYPE.CHICKEN,
-            faceX: 1, faceY: 0, dashCooldown: 0, dashMaxCd: 180, flashEffects: [],
-            tempTimer: 0, tempMaxTime: 20 * 60, exp: 0, inBushId: -1, isTemp: false,
-            invincibleTimer: INVINCIBLE_TIME 
-        };
-        camera.x = player.x - canvas.width / 2; camera.y = player.y - canvas.height / 2;
-        gameActive = true; document.getElementById('progress-fill').style.background = COLORS.CHICKEN; document.getElementById('dash-btn').style.background = COLORS.CHICKEN;
-        updateUI("寻找仇人！抢夺符文报仇！", "#e74c3c"); refreshProgressUI(); updateLeaderboard();
-    }
-
-    let joyActive = false; let joyVector = { x: 0, y: 0 };
-    const joyZone = document.getElementById('joystick-zone'); const joyKnob = document.getElementById('joystick-knob');
-    function handleJoy(e) {
-        if(e) e.preventDefault();
-        if(e.type === 'touchend' || e.type === 'mouseup') { joyActive = false; joyVector = {x: 0, y: 0}; joyKnob.style.transform = `translate(-50%, -50%)`; return; }
-        joyActive = true; let cx = e.touches ? e.touches[0].clientX : e.clientX; let cy = e.touches ? e.touches[0].clientY : e.clientY;
-        let r = joyZone.getBoundingClientRect(); let dx = cx - (r.left + r.width/2); let dy = cy - (r.top + r.height/2);
-        let dist = Math.hypot(dx, dy); if (dist > 50) { dx = (dx/dist)*50; dy = (dy/dist)*50; }
-        joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; joyVector.x = dx / 50; joyVector.y = dy / 50;
-    }
-    joyZone.addEventListener('touchstart', handleJoy); joyZone.addEventListener('touchmove', handleJoy); joyZone.addEventListener('touchend', handleJoy);
-
-    const dashCdUI = document.getElementById('dash-cd');
-    document.getElementById('dash-btn').addEventListener('touchstart', function(e) {
-        e.preventDefault();
-        if(player.dashCooldown <= 0 && gameActive) {
-            player.flashEffects.push({ x: player.x, y: player.y, faceX: player.faceX, faceY: player.faceY, type: player.type, alpha: 1.0 });
-            let flashDist = player.radius * 6; let finalX = player.x; let finalY = player.y;
-            for(let i=0; i<flashDist; i+=10) {
-                let tx = finalX + player.faceX * 10; let ty = finalY + player.faceY * 10;
-                if(isColliding(tx, ty, player.radius) || isCollidingSpikes(tx, ty, player.radius)) break; finalX = tx; finalY = ty;
-            }
-            player.x = finalX; player.y = finalY;
-            player.flashEffects.push({ x: player.x, y: player.y, faceX: player.faceX, faceY: player.faceY, type: player.type, alpha: 0.8 });
-            player.dashCooldown = player.dashMaxCd; dashCdUI.style.display = 'flex';
-        }
-    });
-
-    function showKillText(x, y, text, color, isBig = false) {
-        floatingTexts.push({ x: x, y: y - 30, text: text, alpha: 1.0, color: color, font: `900 ${isBig ? "32px" : "18px"} 'Segoe UI'` });
-    }
-
-    function changePlayerType(newType, isTemp) {
-        player.type = newType; player.isTemp = isTemp;
-        let props = getEntityProps(newType); player.radius = props.r;
-        document.getElementById('progress-fill').style.background = props.color; document.getElementById('dash-btn').style.background = props.color;
-        if(isTemp) { player.tempTimer = player.tempMaxTime; updateUI(`化身 ${props.name}！倒计时开始！`, props.color); } 
-        else { updateUI(`进化！永久 ${props.name}！`, props.color); }
-        refreshProgressUI(); updateLeaderboard();
-    }
-
-    function aiAddProgress(ai, val) {
-        if(ai.type === 5) return;
-        ai.exp += val;
-        let need1 = getNeedExp(1); let need2 = getNeedExp(2); let need3 = getNeedExp(3); let need4 = getNeedExp(4);
-        
-        let oldType = ai.type;
-        if(ai.exp >= need1 && ai.type < TYPE.FOX) { ai.exp -= need1; ai.type = TYPE.FOX; }
-        else if(ai.exp >= need1+need2 && ai.type < TYPE.WOLF) { ai.exp -= (need1+need2); ai.type = TYPE.WOLF; }
-        else if(ai.exp >= need1+need2+need3 && ai.type < TYPE.CROC) { ai.exp -= (need1+need2+need3); ai.type = TYPE.CROC; }
-        else if(ai.exp >= need1+need2+need3+need4 && ai.type < TYPE.DINO) { ai.exp = 99999; ai.type = TYPE.DINO; }
-        if(ai.type !== oldType) ai.radius = getEntityProps(ai.type).r; 
-    }
-
-    let lbTimer = 0;
-
-    function update() {
-        if(!gameActive) return;
-
-        lbTimer++; if(lbTimer > 30) { updateLeaderboard(); lbTimer = 0; } // 定期刷排行榜
-
-        let moveX = joyActive ? joyVector.x : 0; let moveY = joyActive ? joyVector.y : 0;
-        let len = Math.hypot(moveX, moveY);
-        if (len > 0) { moveX /= len; moveY /= len; player.faceX = moveX; player.faceY = moveY; }
-
-        if (!isColliding(player.x + moveX * player.speed, player.y, player.radius)) player.x += moveX * player.speed;
-        if (!isColliding(player.x, player.y + moveY * player.speed, player.radius)) player.y += moveY * player.speed;
-
-        // 玩家死亡尖刺判定 (非无敌期)
-        if (player.invincibleTimer <= 0 && isCollidingSpikes(player.x, player.y, player.radius)) {
-            killPlayer("撞死在尖刺岩石上！", null); return;
-        }
-
-        if (player.dashCooldown > 0) { player.dashCooldown--; dashCdUI.innerText = Math.ceil(player.dashCooldown / 60); if(player.dashCooldown <= 0) dashCdUI.style.display = 'none'; }
-        if (player.invincibleTimer > 0) player.invincibleTimer--;
-
-        for(let i = floatingTexts.length-1; i>=0; i--) { floatingTexts[i].y -= 1.5; floatingTexts[i].alpha -= 0.015; if(floatingTexts[i].alpha <= 0) floatingTexts.splice(i, 1); }
-        for (let i = player.flashEffects.length - 1; i >= 0; i--) { player.flashEffects[i].alpha -= 0.06; if (player.flashEffects[i].alpha <= 0) player.flashEffects.splice(i, 1); }
-
-        player.inBushId = -1;
-        for (let b of bushes) { if (Math.hypot(player.x - b.x, player.y - b.y) < b.r) { player.inBushId = b.id; break; } }
-
-        if (player.isTemp) {
-            player.tempTimer--;
-            if (player.tempTimer <= 0) {
-                let fallbackType = TYPE.CHICKEN; let tempExp = player.exp;
-                if(tempExp >= getNeedExp(1)) { fallbackType = TYPE.FOX; tempExp -= getNeedExp(1); }
-                if(tempExp >= getNeedExp(1)+getNeedExp(2)) { fallbackType = TYPE.WOLF; tempExp -= getNeedExp(2); }
-                if(tempExp >= getNeedExp(1)+getNeedExp(2)+getNeedExp(3)) { fallbackType = TYPE.CROC; }
-                changePlayerType(fallbackType, false); updateUI("体验结束，变回原形！", "#333");
-            }
-        }
-
-        for (let i = foods.length - 1; i >= 0; i--) {
-            if (circleIntersect(player, {x: foods[i].x, y: foods[i].y, radius: 5})) {
-                let val = foods[i].val; flyingExp.push({ x: foods[i].x, y: foods[i].y, val: val });
-                foods.splice(i, 1); foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 1 });
-            }
-        }
-
-        for (let i = runes.length - 1; i >= 0; i--) {
-            let r = runes[i]; let eaten = false;
-            if (circleIntersect(player, r)) {
-                let canEat = false;
-                if (r.rType > player.type) { canEat = true; } else if (r.rType === player.type && player.isTemp) { canEat = true; }
-                if (canEat) { changePlayerType(r.rType, true); eaten = true; showKillText(player.x, player.y, `⚡ 拾取 ${r.name} (20s)`, getEntityProps(r.rType).color, true); }
-            }
-            if (!eaten) {
-                for(let ai of aiList) { if (circleIntersect(ai, r) && r.rType > ai.type) { ai.type = r.rType; ai.radius = getEntityProps(ai.type).r; eaten = true; break; } }
-            }
-            if (eaten) { runes.splice(i, 1); setTimeout(()=> spawnDynamicRune(), 5000); }
-        }
-
-        let nemesisObj = null; 
-
-        for (let i = aiList.length - 1; i >= 0; i--) {
-            let ai = aiList[i]; 
-            if (ai.id === nemesisId) nemesisObj = ai; 
-
-            // AI 撞击尖刺死亡
-            if (isCollidingSpikes(ai.x, ai.y, ai.radius)) {
-                dropLoot(ai.x, ai.y, ai.type); 
-                if (Math.hypot(player.x - ai.x, player.y - ai.y) < 1000) showKillText(ai.x, ai.y, "撞死了!", "#e74c3c", false);
-                if (ai.id === nemesisId) nemesisId = null; 
-                aiList.splice(i, 1); setTimeout(()=> spawnAI(TYPE.CHICKEN), 5000); 
-                continue; 
-            }
-
-            ai.inBushId = -1;
-            for (let b of bushes) { if (Math.hypot(ai.x - b.x, ai.y - b.y) < b.r) { ai.inBushId = b.id; break; } }
-
-            let distToPlayer = Math.hypot(player.x - ai.x, player.y - ai.y);
-            let canBeEatenByAI = (player.type < ai.type && player.invincibleTimer <= 0);
-            let canSeePlayer = (player.inBushId === -1 || player.inBushId === ai.inBushId);
-
-            let targetSet = false;
-            if (canSeePlayer && distToPlayer < (player.radius + ai.radius + 300)) {
-                if (player.type > ai.type) { 
-                    ai.state = 'flee'; let dirX = ai.x - player.x; let dirY = ai.y - player.y; let l = Math.hypot(dirX, dirY);
-                    ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed; targetSet = true;
-                } else if (canBeEatenByAI) { 
-                    ai.state = 'chase'; let dirX = player.x - ai.x; let dirY = player.y - ai.y; let l = Math.hypot(dirX, dirY);
-                    ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed; targetSet = true;
-                }
-            }
-
-            if (!targetSet) {
-                for (let j = 0; j < aiList.length; j++) {
-                    if (i === j) continue; let otherAI = aiList[j];
-                    let distToOther = Math.hypot(otherAI.x - ai.x, otherAI.y - ai.y);
-                    let canSeeOther = (otherAI.inBushId === -1 || otherAI.inBushId === ai.inBushId);
-                    if (canSeeOther && distToOther < 400) {
-                        if (ai.type > otherAI.type) { 
-                            ai.state = 'chase'; let dirX = otherAI.x - ai.x; let dirY = otherAI.y - ai.y; let l = Math.hypot(dirX, dirY);
-                            ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed; targetSet = true; break;
-                        } else if (ai.type < otherAI.type) { 
-                            ai.state = 'flee'; let dirX = ai.x - otherAI.x; let dirY = ai.y - otherAI.y; let l = Math.hypot(dirX, dirY);
-                            ai.vx = (dirX / l) * ai.speed; ai.vy = (dirY / l) * ai.speed; targetSet = true; break;
-                        }
-                    }
-                }
-            }
-
-            if (!targetSet) {
-                if(Math.random()<0.02 || ai.state !== 'wander') { 
-                    ai.state = 'wander'; let angle = Math.random() * Math.PI * 2; 
-                    ai.vx = Math.cos(angle) * ai.speed * 0.5; ai.vy = Math.sin(angle) * ai.speed * 0.5; 
-                }
-            }
-            
-            if (Math.hypot(ai.vx, ai.vy) > 0) { ai.faceX = ai.vx; ai.faceY = ai.vy; }
-            if (!isColliding(ai.x + ai.vx, ai.y, ai.radius)) ai.x += ai.vx; else ai.vx *= -1;
-            if (!isColliding(ai.x, ai.y + ai.vy, ai.radius)) ai.y += ai.vy; else ai.vy *= -1;
-
-            for (let f = foods.length - 1; f >= 0; f--) {
-                if (circleIntersect(ai, {x: foods[f].x, y: foods[f].y, radius: 5})) {
-                    aiAddProgress(ai, foods[f].val); 
-                    foods.splice(f, 1); foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 1 });
-                }
-            }
-
-            if (circleIntersect(player, ai)) {
-                if (player.type > ai.type) { 
-                    if(ai.id === nemesisId) { showKillText(player.x, player.y, "复仇成功！", "#e74c3c", true); nemesisId = null; } 
-                    else { showKillText(player.x, player.y, "一口吞!", "#e67e22", player.type>=4); }
-                    dropLoot(ai.x, ai.y, ai.type); addProgress(getEntityValue(ai.type)); 
-                    aiList.splice(i, 1); setTimeout(()=> spawnAI(TYPE.CHICKEN), 5000); 
-                } 
-                else if (canBeEatenByAI) { 
-                    killPlayer("你成为了别人的大餐！", ai.id);
-                }
-            } else {
-                for (let j = aiList.length - 1; j >= 0; j--) {
-                    if (i === j || !aiList[j]) continue; let otherAI = aiList[j];
-                    if (circleIntersect(ai, otherAI) && ai.type > otherAI.type) {
-                        dropLoot(otherAI.x, otherAI.y, otherAI.type); aiAddProgress(ai, getEntityValue(otherAI.type));
-                        if (Math.hypot(player.x - otherAI.x, player.y - otherAI.y) < 1000) { showKillText(otherAI.x, otherAI.y, "大爆装!", "#f1c40f", false); }
-                        if (otherAI.id === nemesisId) nemesisId = null; 
-                        aiList.splice(j, 1); setTimeout(()=> spawnAI(TYPE.CHICKEN), 5000);
-                        if (j < i) i--; 
-                    }
-                }
-            }
-        }
-
-        const radar = document.getElementById('radar-arrow');
-        // ★ 修复雷达：必须你比仇人高级，雷达才会提示 ★
-        if (nemesisId !== null && nemesisObj && player.type > nemesisObj.type) {
-            radar.style.display = 'block';
-            let dx = nemesisObj.x - player.x; let dy = nemesisObj.y - player.y; let angle = Math.atan2(dy, dx);
-            let cx = window.innerWidth / 2; let cy = window.innerHeight / 2;
-            let radiusUi = Math.min(cx, cy) - 50; 
-            let arrowX = cx + Math.cos(angle) * radiusUi; let arrowY = cy + Math.sin(angle) * radiusUi;
-            
-            // 计算箭头角度和位置
-            radar.style.left = (arrowX - 15) + 'px'; radar.style.top = (arrowY - 30) + 'px'; 
-            radar.style.transform = `rotate(${angle + Math.PI/2}rad)`;
-        } else { radar.style.display = 'none'; }
-
-        let targetX = camera.x + canvas.width / 2; let targetY = camera.y + 40; 
-        for (let i = flyingExp.length - 1; i >= 0; i--) {
-            let f = flyingExp[i]; let dx = targetX - f.x; let dy = targetY - f.y; let dist = Math.hypot(dx, dy);
-            if (dist < 40) { addProgress(f.val); flyingExp.splice(i, 1); } 
-            else { let flySpeed = Math.max(15, dist * 0.15); f.x += (dx / dist) * flySpeed; f.y += (dy / dist) * flySpeed; }
-        }
-
-        let targetCamX = player.x - canvas.width / 2; let targetCamY = player.y - canvas.height / 2;
-        camera.x += (targetCamX - camera.x) * 0.1; camera.y += (targetCamY - camera.y) * 0.1;
-    }
-
-    function addProgress(val) {
-        if (player.type === 5 && !player.isTemp) return; 
-        player.exp += val;
-        let need1 = getNeedExp(1); let need2 = getNeedExp(2); let need3 = getNeedExp(3); let need4 = getNeedExp(4);
-        
-        if(player.exp >= need1 && player.type < TYPE.FOX) { player.exp -= need1; changePlayerType(TYPE.FOX, false); }
-        else if(player.exp >= need1+need2 && player.type < TYPE.WOLF) { player.exp -= (need1+need2); changePlayerType(TYPE.WOLF, false); }
-        else if(player.exp >= need1+need2+need3 && player.type < TYPE.CROC) { player.exp -= (need1+need2+need3); changePlayerType(TYPE.CROC, false); }
-        else if(player.exp >= need1+need2+need3+need4 && player.type < TYPE.DINO) { player.exp = 99999; changePlayerType(TYPE.DINO, false); }
-        refreshProgressUI();
-    }
-
-    function refreshProgressUI() {
-        if (player.type === 5 && !player.isTemp) {
-            document.getElementById('progress-fill').style.width = "100%"; document.getElementById('progress-text').innerText = "MAX 王者";
-        } else {
-            let displayTier = player.isTemp ? 1 : player.type; 
-            let currentPhaseExp = player.exp;
-            if(player.exp >= getNeedExp(1)) { displayTier = 2; currentPhaseExp -= getNeedExp(1); }
-            if(player.exp >= getNeedExp(1)+getNeedExp(2)) { displayTier = 3; currentPhaseExp -= getNeedExp(2); }
-            if(player.exp >= getNeedExp(1)+getNeedExp(2)+getNeedExp(3)) { displayTier = 4; currentPhaseExp -= getNeedExp(3); }
-            
-            let need = getNeedExp(displayTier);
-            let percent = Math.min(100, (Math.max(0, currentPhaseExp) / need) * 100);
-            
-            document.getElementById('progress-fill').style.width = percent + "%";
-            document.getElementById('progress-text').innerText = `${Math.floor(Math.max(0, currentPhaseExp))} / ${need}`;
-        }
-    }
-
-    function updateUI(text, color) { const txt = document.getElementById('status-text'); txt.innerText = text; if(color) txt.style.color = color; }
-
-    function drawCharacter(ctx, x, y, type, fx, fy, isEnemy = false, isNemesis = false) {
-        ctx.save(); ctx.translate(x, y); 
-        let angle = Math.atan2(fy, fx) - Math.PI/2; ctx.rotate(angle);
-        let r = getEntityProps(type).r;
-
-        if (type === 1) { 
-            ctx.fillStyle = COLORS.CHICKEN; ctx.strokeStyle = "#d35400"; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#e67e22"; ctx.beginPath(); ctx.moveTo(-6, r-3); ctx.lineTo(6, r-3); ctx.lineTo(0, r+6); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(-6, r-6, 2.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, r-6, 2.5, 0, Math.PI*2); ctx.fill();
-        } 
-        else if (type === 2) { 
-            ctx.fillStyle = isEnemy ? "#e84118" : "#ff7f50"; ctx.strokeStyle = "#d35400"; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(-15, -r+5); ctx.lineTo(-25, -r-15); ctx.lineTo(-5, -r-5); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(15, -r+5); ctx.lineTo(25, -r-15); ctx.lineTo(5, -r-5); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.moveTo(-16, -r+2); ctx.lineTo(-22, -r-10); ctx.lineTo(-8, -r-3); ctx.fill();
-            ctx.beginPath(); ctx.moveTo(16, -r+2); ctx.lineTo(22, -r-10); ctx.lineTo(8, -r-3); ctx.fill();
-            ctx.fillStyle = COLORS.FOX; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(0, r, 6, 0, Math.PI*2); ctx.fill(); 
-            ctx.strokeStyle = "#2d3436"; ctx.lineWidth = 2; ctx.lineCap = "round";
-            ctx.beginPath(); ctx.moveTo(-12, r-12); ctx.lineTo(-6, r-8); ctx.stroke(); ctx.beginPath(); ctx.moveTo(12, r-12); ctx.lineTo(6, r-8); ctx.stroke();
-        }
-        else if (type === 3) { 
-            ctx.fillStyle = COLORS.WOLF; ctx.strokeStyle = COLORS.WOLF_OUT; ctx.lineWidth = 3;
-            ctx.beginPath(); ctx.moveTo(-14, -r+5); ctx.lineTo(-20, -r-15); ctx.lineTo(-6, -r); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(14, -r+5); ctx.lineTo(20, -r-15); ctx.lineTo(6, -r); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(-r-8, r-10); ctx.lineTo(-r+2, r-5); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(r+8, r-10); ctx.lineTo(r-2, r-5); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#dcdde1"; ctx.beginPath(); ctx.arc(0, r-5, r*0.5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.ellipse(0, r, 7, 4, 0, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.moveTo(-15, r-18); ctx.lineTo(-5, r-12); ctx.lineTo(-12, r-10); ctx.fill(); ctx.beginPath(); ctx.moveTo(15, r-18); ctx.lineTo(5, r-12); ctx.lineTo(12, r-10); ctx.fill();
-        }
-        else if (type === 4) { 
-            ctx.fillStyle = COLORS.CROC; ctx.strokeStyle = COLORS.CROC_OUT; ctx.lineWidth = 4;
-            ctx.beginPath(); ctx.ellipse(0, r/2, r*0.6, r*0.8, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.ellipse(0, -r/4, r*0.9, r*0.6, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = COLORS.CROC_OUT; ctx.beginPath(); ctx.ellipse(-10, r, 4, 8, Math.PI/6, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(10, r, 4, 8, -Math.PI/6, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#c8d6a1"; ctx.beginPath(); ctx.arc(-15, -r/4, 6, 0, Math.PI*2); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.arc(15, -r/4, 6, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.ellipse(-15, -r/4, 2, 4, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(15, -r/4, 2, 4, 0, 0, Math.PI*2); ctx.fill();
-        }
-        else if (type === 5) { 
-            ctx.fillStyle = COLORS.DINO; ctx.strokeStyle = COLORS.DINO_OUT; ctx.lineWidth = 4;
-            ctx.beginPath();
-            for(let i=0; i<=Math.PI; i+=Math.PI/6) { let radius = r + (i% (Math.PI/3) === 0 ? 0 : 8); ctx.lineTo(-Math.cos(i)*radius, -Math.sin(i)*radius - r/4); }
-            ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#c5cdad";
-            for(let i=Math.PI/6; i<Math.PI; i+=Math.PI/3) { ctx.beginPath(); ctx.arc(-Math.cos(i)*r, -Math.sin(i)*r - r/4, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke(); }
-            ctx.fillStyle = COLORS.DINO; ctx.beginPath(); ctx.moveTo(0, r); ctx.lineTo(-r*0.7, -r*0.3); ctx.lineTo(r*0.7, -r*0.3); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#a8b195"; ctx.beginPath(); ctx.moveTo(0, r+5); ctx.lineTo(-8, r-5); ctx.lineTo(8, r-5); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#e0e6c8"; ctx.beginPath(); ctx.moveTo(-10, -5); ctx.lineTo(-25, r-5); ctx.lineTo(-5, 0); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(10, -5); ctx.lineTo(25, r-5); ctx.lineTo(5, 0); ctx.fill(); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, r-15); ctx.lineTo(-4, r-25); ctx.lineTo(4, r-25); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(-15, 5, 3, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(15, 5, 3, 0, Math.PI*2); ctx.fill();
-        }
-        ctx.restore();
-
-        if (isNemesis) {
-            ctx.save(); ctx.translate(x, y);
-            ctx.fillStyle = "#e74c3c"; ctx.font = "bold 24px 'Segoe UI'"; ctx.textAlign = "center"; ctx.shadowColor = "white"; ctx.shadowBlur = 5;
-            ctx.fillText("🎯 仇人", 0, - (r + 15 + Math.sin(Date.now()/200)*10));
-            ctx.restore();
-        }
-    }
-
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.save(); ctx.translate(-camera.x, -camera.y);
-
-        ctx.fillStyle = "#d8e3d6"; ctx.fillRect(camera.x, camera.y, MAP_SIZE, MAP_SIZE); 
-        
-        ctx.fillStyle = "#57606f"; 
-        ctx.fillRect(0, 0, MAP_SIZE, BOUNDARY_THICKNESS); ctx.fillRect(0, MAP_SIZE - BOUNDARY_THICKNESS, MAP_SIZE, BOUNDARY_THICKNESS); 
-        ctx.fillRect(0, 0, BOUNDARY_THICKNESS, MAP_SIZE); ctx.fillRect(MAP_SIZE - BOUNDARY_THICKNESS, 0, BOUNDARY_THICKNESS, MAP_SIZE); 
-        ctx.fillStyle = "#2f3542";
-        for(let i=0; i<MAP_SIZE; i+=80) {
-            ctx.fillRect(i, 0, 10, BOUNDARY_THICKNESS); ctx.fillRect(i, MAP_SIZE - BOUNDARY_THICKNESS, 10, BOUNDARY_THICKNESS);
-            ctx.fillRect(0, i, BOUNDARY_THICKNESS, 10); ctx.fillRect(MAP_SIZE - BOUNDARY_THICKNESS, i, BOUNDARY_THICKNESS, 10);
-        }
-
-        // ★ 绘制黑色的致命尖刺岩石 ★
-        for (let s of spikeStones) {
-            ctx.fillStyle = "#2d3436"; ctx.beginPath(); ctx.arc(s.x, s.y, s.radius, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#e74c3c"; ctx.beginPath(); ctx.arc(s.x, s.y, s.radius*0.4, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#1e272e"; ctx.strokeStyle = "#e74c3c"; ctx.lineWidth = 2;
-            ctx.beginPath();
-            let spikeCount = 12;
-            for(let i=0; i<=Math.PI*2; i+=Math.PI/(spikeCount/2)) {
-                let outR = s.radius * 1.2; let inR = s.radius * 0.8;
-                ctx.lineTo(s.x + Math.cos(i)*outR, s.y + Math.sin(i)*outR);
-                ctx.lineTo(s.x + Math.cos(i+Math.PI/spikeCount)*inR, s.y + Math.sin(i+Math.PI/spikeCount)*inR);
-            }
-            ctx.closePath(); ctx.fill(); ctx.stroke();
-            ctx.fillStyle = "rgba(231, 76, 60, 0.3)"; ctx.beginPath(); ctx.arc(s.x, s.y, s.radius + Math.sin(Date.now()/200)*10, 0, Math.PI*2); ctx.fill();
-        }
-
-        for (let f of foods) { 
-            ctx.fillStyle = f.val === 5 ? "#e67e22" : "#f1c40f"; ctx.beginPath(); ctx.arc(f.x, f.y, f.val === 5 ? 8 : 4, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.beginPath(); ctx.arc(f.x, f.y, f.val === 5 ? 4 : 2, 0, Math.PI*2); ctx.fill();
-        }
-
-        ctx.textAlign = "center"; ctx.textBaseline = "middle"; 
-        for (let r of runes) {
-            let color = getEntityProps(r.rType).color;
-            ctx.save(); ctx.translate(r.x, r.y);
-            let floatY = Math.sin((Date.now() - r.createTime) / 200) * 5; ctx.translate(0, floatY);
-
-            ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 150) * 0.2;
-            ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1.0;
-
-            ctx.fillStyle = "#34495e"; ctx.strokeStyle = color; ctx.lineWidth = 3;
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) { let angle = (Math.PI / 3) * i + Math.PI / 6; ctx.lineTo(Math.cos(angle) * 22, Math.sin(angle) * 22); }
-            ctx.closePath(); ctx.fill(); ctx.stroke();
-
-            ctx.fillStyle = "#fff"; ctx.font = "bold 22px 'Segoe UI'"; ctx.shadowColor = color; ctx.shadowBlur = 10;
-            ctx.fillText(r.emoji, 0, 2); ctx.shadowBlur = 0;
-            ctx.font = "bold 12px 'Segoe UI'"; ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.fillText(r.name, 0, 35);
-            ctx.restore();
-        }
-
-        for (let b of bushes) { 
-            ctx.fillStyle = "rgba(170, 190, 160, 0.4)"; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
-            ctx.beginPath(); ctx.arc(b.x-b.r/2, b.y+b.r/3, b.r*0.8, 0, Math.PI*2); ctx.fill();
-        } 
-
-        for (let ai of aiList) {
-            let visible = true;
-            if (ai.inBushId !== -1 && player.inBushId !== ai.inBushId) visible = false;
-            if (visible) drawCharacter(ctx, ai.x, ai.y, ai.type, ai.faceX, ai.faceY, true, ai.id === nemesisId);
-        }
-
-        for (let eff of player.flashEffects) { ctx.globalAlpha = eff.alpha * 0.3; drawCharacter(ctx, eff.x, eff.y, eff.type, eff.faceX, eff.faceY); }
-        ctx.globalAlpha = 1.0;
-
-        if(gameActive) {
-            if (player.inBushId !== -1) ctx.globalAlpha = 0.5; 
-            
-            if(player.invincibleTimer > 0) {
-                ctx.save(); ctx.translate(player.x, player.y);
-                ctx.beginPath(); ctx.arc(0, 0, player.radius + 10 + Math.sin(Date.now()/100)*5, 0, Math.PI*2);
-                ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"; ctx.lineWidth = 4; ctx.stroke(); 
-                ctx.fillStyle = "#e74c3c"; ctx.font = "bold 16px 'Segoe UI'"; ctx.shadowColor = "white"; ctx.shadowBlur = 4; ctx.textAlign = "center";
-                ctx.fillText(`🛡️ 保护期: ${Math.ceil(player.invincibleTimer/60)}s`, 0, -player.radius - 20);
-                ctx.restore();
-            }
-
-            drawCharacter(ctx, player.x, player.y, player.type, player.faceX, player.faceY, false); ctx.globalAlpha = 1.0;
-            
-            if (player.isTemp) {
-                let offset = player.invincibleTimer > 0 ? 45 : 20; 
-                ctx.fillStyle = "#333"; ctx.font = "bold 20px 'Segoe UI'"; ctx.shadowColor = "white"; ctx.shadowBlur = 3;
-                ctx.fillText(Math.ceil(player.tempTimer/60) + "s", player.x, player.y - player.radius - offset); ctx.shadowBlur = 0;
-            }
-        }
-
-        for(let f of flyingExp) {
-            ctx.fillStyle = f.val === 5 ? "#e67e22" : "#f1c40f"; ctx.beginPath(); ctx.arc(f.x, f.y, 6, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "rgba(241, 196, 15, 0.3)"; ctx.beginPath(); ctx.arc(f.x, f.y, 12, 0, Math.PI*2); ctx.fill();
-        }
-
-        for(let ft of floatingTexts) {
-            ctx.globalAlpha = ft.alpha; ctx.fillStyle = ft.color; ctx.font = ft.font; ctx.shadowColor = "rgba(255,255,255,0.8)"; ctx.shadowBlur = 3;
-            ctx.fillText(ft.text, ft.x, ft.y);
-        }
-        ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
-
-        ctx.restore();
-    }
-
-    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
-    initEnvironment(); fullResetGame(); gameLoop(); 
-</script>
-</body>
-</html>
-Model 19:15
-ThinkingThoughts
-Expand to view model thoughts
-
-chevron_right
-非常抱歉！这通常是因为如果在电脑浏览器上直接打开，没有鼠标事件的支持，摇杆就会失效；或者是因为初始化的顺序在某些机型上触发了 JS 报错导致画面卡死。
-我为你进行了全面的底层修复与兼容性升级，现在这段代码无论是在手机上触摸，还是在电脑上用鼠标拖拽摇杆（甚至用键盘 WASD / 闪现按空格键）都可以完美游玩了！
-请复制这段最新、最稳定的代码：
-code
-Html
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>疯狂食物链 - 终极流畅版</title>
-    <style>
-        body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            background-color: #d8e3d6; 
-            touch-action: none; overscroll-behavior: none; user-select: none; font-family: 'Segoe UI', sans-serif;
-        }
-        #gameCanvas { display: block; width: 100%; height: 100%; }
-        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; overflow: hidden; }
+        /* ★ 核心修复：让 UI 层允许鼠标事件穿透，只拦截特定按钮 ★ */
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         
         #top-bar {
             position: absolute; top: env(safe-area-inset-top, 20px); left: 50%; transform: translateX(-50%);
-            width: 90vw; max-width: 400px; text-align: center;
+            width: 90vw; max-width: 400px; text-align: center; pointer-events: none;
         }
         #status-text { color: #333; font-weight: 900; font-size: 1.1rem; text-shadow: 0 2px 0px rgba(255,255,255,0.8); margin-bottom: 8px; }
         #progress-bg {
@@ -799,15 +43,17 @@ Html
         .lb-score { color: #f39c12; margin-left: 5px; }
         .lb-me { color: #2ecc71; font-weight: 900; background: rgba(255,255,255,0.2); border-radius: 4px; padding: 2px; }
 
+        /* 摇杆区域恢复 pointer-events: auto 接收点击 */
         #joystick-zone {
             position: absolute; bottom: max(40px, env(safe-area-inset-bottom, 40px)); left: max(30px, env(safe-area-inset-left, 30px));
             width: 130px; height: 130px; background: rgba(255, 255, 255, 0.3);
             border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); pointer-events: auto; backdrop-filter: blur(4px);
-            cursor: pointer;
+            cursor: grab;
         }
         #joystick-knob {
             position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
             background: rgba(255, 255, 255, 0.9); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            pointer-events: none; /* 让事件穿透到 zone 上 */
         }
 
         #dash-btn {
@@ -841,10 +87,11 @@ Html
 
         #radar-arrow {
             position: absolute; width: 0; height: 0; border-left: 15px solid transparent; border-right: 15px solid transparent; border-bottom: 30px solid #ff3838; 
-            transform-origin: 15px 40px; display: none; z-index: 5; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+            transform-origin: 15px 40px; display: none; pointer-events: none; z-index: 5; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
             animation: pulseRadar 0.5s infinite alternate;
         }
         @keyframes pulseRadar { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.2); opacity: 1; } }
+
     </style>
 </head>
 <body>
@@ -860,6 +107,7 @@ Html
             <div id="status-text">小鸡 - 努力吃豆子进化！</div>
             <div id="progress-bg"><div id="progress-fill"></div><div id="progress-text">0 / 150</div></div>
         </div>
+        
         <div id="joystick-zone"><div id="joystick-knob"></div></div>
         <div id="dash-btn">闪<div id="dash-cd"></div></div>
         <div id="radar-arrow"></div>
@@ -875,6 +123,7 @@ Html
     </div>
 
 <script>
+    // 阻止移动端默认的橡皮筋回弹和缩放
     document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
 
     const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
@@ -888,7 +137,7 @@ Html
     const AI_NAMES = ["路人甲", "小透明", "疯狂的狗子", "王二狗", "键盘侠", "不吃香菜", "躺平的咸鱼", "秀儿", "专业送人头", "老阴比", "草丛之王", "打工魂", "干饭人", "龙傲天", "赵四", "神秘力量"];
 
     let camera = { x: 0, y: 0 }; 
-    let player = { type: TYPE.CHICKEN, exp: 0 }; // 初始化防止报错
+    let player = { type: TYPE.CHICKEN, exp: 0 }; 
     let bushes = [], crates = [], stones = [], spikeStones = [], foods = [], runes = [], aiList = [];
     let floatingTexts = []; let flyingExp = []; 
     let gameActive = true; let aiIdCounter = 1; let nemesisId = null; 
@@ -1024,11 +273,13 @@ Html
         else { document.getElementById('death-desc').innerText = "血本无归！满地都是你的爆装！"; }
         document.getElementById('death-modal-overlay').style.display = 'flex';
         updateLeaderboard();
+        
+        // 重置摇杆状态防止复活时飘走
+        joyActive = false; joyVector = {x: 0, y: 0}; joyKnob.style.transform = `translate(-50%, -50%)`;
     }
 
     function fullResetGame() {
         document.getElementById('death-modal-overlay').style.display = 'none'; 
-        player = { type: TYPE.CHICKEN, exp: 0, x: 0, y: 0 }; // 防止环境初始化时报错
         initEnvironment(); 
         let safePos = getSafeSpawn(16);
         player = {
@@ -1055,18 +306,58 @@ Html
         updateUI("寻找仇人！抢夺符文报仇！", "#e74c3c"); refreshProgressUI(); updateLeaderboard();
     }
 
-    // ★ 键盘+鼠标+触屏 完美通用支持 ★
-    let joyActive = false; let joyVector = { x: 0, y: 0 };
-    const joyZone = document.getElementById('joystick-zone'); const joyKnob = document.getElementById('joystick-knob');
+    // ==========================================
+    // ★ 终极摇杆控制系统 (彻底修复触摸/鼠标卡顿失效) ★
+    // ==========================================
+    let joyActive = false; 
+    let joyVector = { x: 0, y: 0 };
+    const joyZone = document.getElementById('joystick-zone'); 
+    const joyKnob = document.getElementById('joystick-knob');
+    let touchId = null; // 记录摇杆的手指ID，防止多点触控干扰
     
-    function handleJoy(e) {
-        if(e.type !== 'mousemove') e.preventDefault(); 
-        if(e.type === 'touchend' || e.type === 'mouseup' || e.type === 'mouseleave') { 
-            joyActive = false; joyVector = {x: 0, y: 0}; joyKnob.style.transform = `translate(-50%, -50%)`; return; 
+    function startJoy(e) {
+        if(!gameActive) return;
+        joyActive = true;
+        joyZone.style.cursor = 'grabbing';
+        
+        let clientX, clientY;
+        if(e.type === 'touchstart') {
+            touchId = e.changedTouches[0].identifier;
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        } else {
+            clientX = e.clientX; clientY = e.clientY;
         }
-        joyActive = true; 
-        let cx = e.touches ? e.touches[0].clientX : e.clientX; 
-        let cy = e.touches ? e.touches[0].clientY : e.clientY;
+        updateJoyPos(clientX, clientY);
+    }
+    
+    function moveJoy(e) {
+        if(!joyActive || !gameActive) return;
+        let clientX, clientY;
+        if(e.type === 'touchmove') {
+            // 只处理对应手指的滑动
+            let touch = Array.from(e.changedTouches).find(t => t.identifier === touchId);
+            if(!touch) return;
+            clientX = touch.clientX; clientY = touch.clientY;
+        } else {
+            clientX = e.clientX; clientY = e.clientY;
+        }
+        updateJoyPos(clientX, clientY);
+    }
+    
+    function endJoy(e) {
+        if(e.type.includes('touch') && touchId !== null) {
+            let touch = Array.from(e.changedTouches).find(t => t.identifier === touchId);
+            if(!touch) return; // 不是摇杆的手指松开，不管它
+        }
+        
+        joyActive = false; touchId = null;
+        joyVector = {x: 0, y: 0}; 
+        joyKnob.style.transform = `translate(-50%, -50%)`; 
+        joyZone.style.cursor = 'grab';
+    }
+    
+    function updateJoyPos(cx, cy) {
         let r = joyZone.getBoundingClientRect(); 
         let dx = cx - (r.left + r.width/2); 
         let dy = cy - (r.top + r.height/2);
@@ -1075,24 +366,30 @@ Html
         joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; 
         joyVector.x = dx / 50; joyVector.y = dy / 50;
     }
-    
-    // 手机端触摸
-    joyZone.addEventListener('touchstart', handleJoy, {passive: false}); 
-    joyZone.addEventListener('touchmove', handleJoy, {passive: false}); 
-    joyZone.addEventListener('touchend', handleJoy);
-    // 电脑端鼠标
-    joyZone.addEventListener('mousedown', handleJoy);
-    window.addEventListener('mousemove', (e) => { if(joyActive) handleJoy(e); });
-    window.addEventListener('mouseup', handleJoy);
 
+    // 绑定摇杆事件 (鼠标绑在 window 上防止滑出区域失效)
+    joyZone.addEventListener('mousedown', startJoy);
+    window.addEventListener('mousemove', moveJoy);
+    window.addEventListener('mouseup', endJoy);
+    
+    joyZone.addEventListener('touchstart', startJoy, {passive: false});
+    window.addEventListener('touchmove', moveJoy, {passive: false});
+    window.addEventListener('touchend', endJoy);
+    window.addEventListener('touchcancel', endJoy);
+
+    // ==========================================
     // 键盘支持 (WASD)
+    // ==========================================
     const keys = {};
     window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if(e.key===' ' && gameActive) doDash(e); });
     window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
+    // ==========================================
+    // 闪现技能
+    // ==========================================
     const dashCdUI = document.getElementById('dash-cd');
     function doDash(e) {
-        if(e) e.preventDefault();
+        if(e && e.cancelable) e.preventDefault(); // 防止双击放大等默认行为
         if(player.dashCooldown <= 0 && gameActive) {
             player.flashEffects.push({ x: player.x, y: player.y, faceX: player.faceX, faceY: player.faceY, type: player.type, alpha: 1.0 });
             let flashDist = player.radius * 6; let finalX = player.x; let finalY = player.y;
@@ -1510,7 +807,7 @@ Html
     }
 
     function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
-    fullResetGame(); gameLoop(); 
+    initEnvironment(); fullResetGame(); gameLoop(); 
 </script>
 </body>
 </html>
