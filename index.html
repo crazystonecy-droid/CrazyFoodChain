@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>疯狂食物链 - 丝滑开阔 V19</title>
+    <title>疯狂食物链 - 终极数值 V19</title>
     <style>
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
@@ -11,6 +11,7 @@
             touch-action: none; overscroll-behavior: none; user-select: none; font-family: 'Segoe UI', sans-serif;
         }
         #gameCanvas { display: block; width: 100%; height: 100%; }
+        
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; overflow: hidden; }
         
         #top-bar {
@@ -38,7 +39,7 @@
         #joystick-knob {
             position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
             background: rgba(255, 255, 255, 0.9); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            pointer-events: none;
+            pointer-events: none; 
         }
 
         #dash-btn {
@@ -76,6 +77,7 @@
             animation: pulseRadar 0.5s infinite alternate;
         }
         @keyframes pulseRadar { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.2); opacity: 1; } }
+
     </style>
 </head>
 <body>
@@ -109,12 +111,12 @@
     window.addEventListener('resize', resize); resize();
 
     const TYPE = { CHICKEN: 1, FOX: 2, WOLF: 3, CROC: 4, DINO: 5 };
-    const GLOBAL_SPEED = 4.5; const MAP_SIZE = 4000; const INVINCIBLE_TIME = 15 * 60; const MAX_RUNES = 15;
+    const GLOBAL_SPEED = 4.5; const MAP_SIZE = 4000; const INVINCIBLE_TIME = 15 * 60; const MAX_RUNES = 12;
     const BOUNDARY_THICKNESS = 40; 
 
     let camera = { x: 0, y: 0 }; 
     let player = { type: TYPE.CHICKEN, exp: 0 }; 
-    let bushes = [], foods = [], runes = [], aiList = [];
+    let bushes = [], crates = [], stones = [], spikeStones = [], foods = [], runes = [], aiList = [];
     let floatingTexts = []; let flyingExp = []; 
     let gameActive = true; let aiIdCounter = 1; let nemesisId = null; 
 
@@ -130,10 +132,16 @@
         if(type === 1) return 50;   if(type === 2) return 100;  
         if(type === 3) return 200;  if(type === 4) return 400;  if(type === 5) return 800;  return 0;
     }
+    
+    // ★ 核心数值修改：鳄鱼变恐龙的积分翻倍 ★
     function getNeedExp(tier) {
-        if(tier === 1) return 150;  if(tier === 2) return 400;  
-        if(tier === 3) return 1000; if(tier === 4) return 2000; return 99999;
+        if(tier === 1) return 150;  // 鸡变狐狸
+        if(tier === 2) return 400;  // 狐狸变狼
+        if(tier === 3) return 1000; // 狼变鳄鱼
+        if(tier === 4) return 4000; // ★ 鳄鱼变恐龙：从2000提升到4000 ★
+        return 99999;
     }
+
     function getEntityProps(type) {
         if(type === 1) return { r: 16, name: "小鸡", emoji: "🐥", color: COLORS.CHICKEN }; 
         if(type === 2) return { r: 24, name: "赤狐", emoji: "🦊", color: COLORS.FOX };
@@ -153,11 +161,11 @@
         return { x: x, y: y };
     }
 
-    // 只保留最基础的边界墙碰撞，保证手感绝对丝滑
     function isColliding(x, y, r) {
         if(x - r < BOUNDARY_THICKNESS || x + r > MAP_SIZE - BOUNDARY_THICKNESS || y - r < BOUNDARY_THICKNESS || y + r > MAP_SIZE - BOUNDARY_THICKNESS) return true;
         return false;
     }
+    
     function circleIntersect(c1, c2) { return Math.hypot(c1.x - c2.x, c1.y - c2.y) < (c1.radius + (c2.radius || 10)); }
 
     function spawnDynamicRune() {
@@ -194,6 +202,7 @@
 
     function initEnvironment() {
         bushes = []; foods = []; runes = []; aiList = []; nemesisId = null; flyingExp = [];
+        
         for(let i=0; i<45; i++) bushes.push({ id: i, x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, r: 80+Math.random()*80 });
         for(let i=0; i<150; i++) foods.push({ x: Math.random()*MAP_SIZE, y: Math.random()*MAP_SIZE, val: 1 }); 
 
@@ -207,9 +216,11 @@
     function killPlayer(reason, fromNemesisId) {
         gameActive = false; nemesisId = fromNemesisId; 
         dropLoot(player.x, player.y, player.type); 
+        
         document.getElementById('death-title').innerText = reason;
         if(fromNemesisId !== null) { document.getElementById('death-desc').innerText = "记住它的长相，复活找它报仇！"; } 
         else { document.getElementById('death-desc').innerText = "血本无归！满地都是你的爆装！"; }
+        
         document.getElementById('death-modal-overlay').style.display = 'flex';
         
         joyActive = false; joyVector = {x: 0, y: 0}; joyKnob.style.transform = `translate(-50%, -50%)`;
@@ -311,7 +322,8 @@
     }
 
     function aiAddProgress(ai, val) {
-        if(ai.type === 5) return; ai.exp += val;
+        if(ai.type === 5) return;
+        ai.exp += val;
         let need1 = getNeedExp(1); let need2 = getNeedExp(2); let need3 = getNeedExp(3); let need4 = getNeedExp(4);
         let oldType = ai.type;
         if(ai.exp >= need1 && ai.type < TYPE.FOX) { ai.exp -= need1; ai.type = TYPE.FOX; }
